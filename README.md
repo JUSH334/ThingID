@@ -31,7 +31,7 @@ ThingID/
 
 ### Live Demo
 
-**Try it now**: [https://jush334.github.io/thingid](https://jush334.github.io/thingid)
+**Try it now**: [https://jush334.github.io/thingid](https://jush334.github.io/ThingID/)
 
 The frontend is hosted on GitHub Pages and connects directly to the DIDLab blockchain.
 
