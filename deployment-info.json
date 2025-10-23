@@ -1,0 +1,12 @@
+{
+  "network": "DIDLab QBFT",
+  "chainId": 252501,
+  "contractAddress": "0x5A0d15B2E16b67Bf8dCbd2DfBf147d4A20e5CAC4",
+  "contractName": "ThingID",
+  "deployer": "0xFB3C61Dcc2dF6800C62E7ba2bcA5e9dd7d42f2F7",
+  "deploymentTxHash": "0xe73705f647a675099c56058b328867fca404e57cae6ed81393b0a13d56ab378b",
+  "timestamp": "2025-10-23T22:19:57.265Z",
+  "rpcUrl": "https://eth.didlab.org",
+  "explorerUrl": "https://explorer.didlab.org/address/0x5A0d15B2E16b67Bf8dCbd2DfBf147d4A20e5CAC4",
+  "faucetUrl": "https://faucet.didlab.org"
+}

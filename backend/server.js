@@ -1,585 +1,577 @@
-// server.js - Fixed for Railway Deployment
+// ThingID Backend API Server for DIDLab Network
+// Requirements: npm install express ethers dotenv cors helmet express-rate-limit
+
 const express = require('express');
+const { ethers } = require('ethers');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-const crypto = require('crypto');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+require('dotenv').config();
 
 const app = express();
-// IMPORTANT: Use Railway's PORT environment variable
 const PORT = process.env.PORT || 3000;
 
-// Middleware - CRITICAL: Configure CORS properly for Railway
-app.use(cors({
-    origin: '*', // Allow all origins for now (restrict in production)
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// ============ MIDDLEWARE ============
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(helmet());
+app.use(cors());
+app.use(express.json());
 
-// In-memory database (replace with MongoDB/PostgreSQL in production)
-const db = {
-    devices: [],
-    accessPasses: [],
-    streamData: {},
-    deviceIdCounter: 0,
-    passIdCounter: 0,
-    users: []
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use('/api/', limiter);
+
+// ============ CONFIGURATION ============
+
+const DIDLAB_CONFIG = {
+    rpcUrl: process.env.DIDLAB_RPC_URL || 'https://eth.didlab.org',
+    chainId: 252501,
+    contractAddress: process.env.CONTRACT_ADDRESS || '0x5A0d15B2E16b67Bf8dCbd2DfBf147d4A20e5CAC4', // Deploy contract first
+    privateKey: process.env.PRIVATE_KEY // For server-side transactions (optional)
 };
 
-// Initialize with sample data
-function initializeSampleData() {
-    // Sample devices
-    db.devices = [
-        {
-            id: 1,
-            did: 'did:didlab:device-temp-sensor-001',
-            pubKey: '0x04a8c3e5d7b9f2e1c6d8a4b2e9f7c3d5a1b8e6f4c2d9a7b5e3f1c8d6a4b2e9f7',
-            make: 'SensorCo',
-            model: 'TempSensor-S1',
-            owner: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8',
-            certId: 'DCERT-001',
-            issuedAt: Date.now() - 86400000,
-            metadata: {
-                location: 'Building A - Floor 3',
-                serialNumber: 'SC-TS-2024-0001',
-                firmware: 'v2.3.1'
-            }
-        },
-        {
-            id: 2,
-            did: 'did:didlab:device-motion-detector-002',
-            pubKey: '0x04b7e2f8a3c5d9b1e7f4a6c2d8e5b9f3a7d1c4e8b2f6a9d3e7b1c5f9a3d7e2b6',
-            make: 'SecureNet',
-            model: 'MotionGuard-Pro',
-            owner: '0x5B38Da6a701c568545dCfcB03FcB875f56beddC4',
-            certId: 'DCERT-002',
-            issuedAt: Date.now() - 172800000,
-            metadata: {
-                location: 'Warehouse B - Entry Point',
-                serialNumber: 'SN-MG-2024-0045',
-                firmware: 'v1.8.3'
-            }
-        },
-        {
-            id: 3,
-            did: 'did:didlab:device-humidity-sensor-003',
-            pubKey: '0x04c9f3a7e2b5d8c1f6a9e3b7d2c5f8a3e1b8e6f4c2d9a7b5e3f1c8d6a4b2e9f7',
-            make: 'EnviroTech',
-            model: 'HumidityTracker-X',
-            owner: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8',
-            certId: 'DCERT-003',
-            issuedAt: Date.now() - 259200000,
-            metadata: {
-                location: 'Greenhouse Section C',
-                serialNumber: 'ET-HT-2024-0123',
-                firmware: 'v3.1.0'
+// ThingID Contract ABI (minimal interface)
+const THINGID_ABI = [
+    "function registerDevice(string _did, string _name, string _deviceType, string _manufacturer, string _model, string _serialNumber, string _location, string _publicKey) returns (bytes32)",
+    "function grantAccess(bytes32 deviceId, address viewer, uint256 duration)",
+    "function revokeAccess(bytes32 deviceId, address viewer)",
+    "function hasAccess(bytes32 deviceId, address viewer) view returns (bool)",
+    "function getDevice(bytes32 deviceId) view returns (tuple(string did, string name, string deviceType, string manufacturer, string model, string serialNumber, string location, string publicKey, address owner, uint256 registeredAt, bool isActive))",
+    "function getOwnerDevices(address owner) view returns (bytes32[])",
+    "function getDeviceAccessPasses(bytes32 deviceId) view returns (tuple(address device_owner, address viewer, uint256 grantedAt, uint256 expiresAt, bool isActive)[])",
+    "function getTotalDevices() view returns (uint256)",
+    "function getAccessExpiration(bytes32 deviceId, address viewer) view returns (uint256)",
+    "function updateDevice(bytes32 deviceId, string _name, string _location)",
+    "function toggleDeviceStatus(bytes32 deviceId)",
+    "event DeviceRegistered(bytes32 indexed deviceId, string did, address indexed owner, string name, string deviceType, uint256 timestamp)",
+    "event AccessGranted(bytes32 indexed deviceId, address indexed owner, address indexed viewer, uint256 expiresAt, uint256 timestamp)",
+    "event AccessRevoked(bytes32 indexed deviceId, address indexed viewer, uint256 timestamp)"
+];
+
+// ============ PROVIDER & CONTRACT SETUP ============
+
+let provider;
+let contract;
+let wallet;
+
+function initializeProvider() {
+    try {
+        provider = new ethers.providers.JsonRpcProvider(DIDLAB_CONFIG.rpcUrl);
+        
+        if (DIDLAB_CONFIG.contractAddress) {
+            contract = new ethers.Contract(
+                DIDLAB_CONFIG.contractAddress,
+                THINGID_ABI,
+                provider
+            );
+            
+            // If private key is provided, create wallet for server-side txs
+            if (DIDLAB_CONFIG.privateKey) {
+                wallet = new ethers.Wallet(DIDLAB_CONFIG.privateKey, provider);
+                contract = contract.connect(wallet);
             }
         }
-    ];
+        
+        console.log('✅ Connected to DIDLab network');
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to connect to DIDLab:', error);
+        return false;
+    }
+}
 
-    // Sample access passes
-    db.accessPasses = [
-        {
-            id: 1,
-            passId: 'APASS-001',
-            deviceId: 1,
-            deviceDid: 'did:didlab:device-temp-sensor-001',
-            viewer: '0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B',
-            grantedBy: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8',
-            grantedAt: Date.now() - 1800000,
-            expiresAt: Date.now() + 1800000 // 30 minutes from now
-        },
-        {
-            id: 2,
-            passId: 'APASS-002',
-            deviceId: 1,
-            deviceDid: 'did:didlab:device-temp-sensor-001',
-            viewer: '0xCA35b7d915458EF540aDe6068dFe2F44E8fa733c',
-            grantedBy: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8',
-            grantedAt: Date.now() - 3600000,
-            expiresAt: Date.now() - 600000 // Expired 10 minutes ago
+// ============ HEALTH CHECK ============
+
+app.get('/health', async (req, res) => {
+    try {
+        const blockNumber = await provider.getBlockNumber();
+        const network = await provider.getNetwork();
+        
+        res.json({
+            status: 'healthy',
+            network: {
+                name: 'DIDLab QBFT',
+                chainId: network.chainId,
+                blockNumber: blockNumber
+            },
+            contractAddress: DIDLAB_CONFIG.contractAddress || 'Not deployed',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'unhealthy',
+            error: error.message
+        });
+    }
+});
+
+// ============ NETWORK INFO ============
+
+app.get('/api/network/info', async (req, res) => {
+    try {
+        const blockNumber = await provider.getBlockNumber();
+        const network = await provider.getNetwork();
+        const gasPrice = await provider.getGasPrice();
+        
+        res.json({
+            success: true,
+            data: {
+                network: 'DIDLab QBFT',
+                chainId: network.chainId,
+                rpcUrl: DIDLAB_CONFIG.rpcUrl,
+                blockNumber: blockNumber,
+                gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei') + ' gwei',
+                explorer: 'https://explorer.didlab.org',
+                faucet: 'https://faucet.didlab.org'
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============ DEVICE ENDPOINTS ============
+
+// Register device (client-side transaction - return encoded data)
+app.post('/api/devices/register/encode', (req, res) => {
+    try {
+        const { did, name, deviceType, manufacturer, model, serialNumber, location, publicKey } = req.body;
+        
+        if (!contract) {
+            return res.status(400).json({
+                success: false,
+                error: 'Contract not initialized'
+            });
         }
-    ];
-
-    db.deviceIdCounter = 3;
-    db.passIdCounter = 2;
-}
-
-// Initialize sample data on startup
-initializeSampleData();
-
-// Utility function to generate random sensor data
-function generateSensorData(deviceId) {
-    const device = db.devices.find(d => d.id === deviceId);
-    if (!device) return null;
-
-    let data = {
-        deviceId: device.id,
-        did: device.did,
-        timestamp: new Date().toISOString(),
-    };
-
-    // Generate data based on device type
-    if (device.model.includes('Temp')) {
-        data = {
-            ...data,
-            temperature: (18 + Math.random() * 12).toFixed(1),
-            unit: 'celsius'
-        };
+        
+        // Validate required fields
+        if (!did || !name || !deviceType || !manufacturer || !model) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields'
+            });
+        }
+        
+        // Encode the transaction data
+        const iface = new ethers.utils.Interface(THINGID_ABI);
+        const data = iface.encodeFunctionData('registerDevice', [
+            did,
+            name,
+            deviceType,
+            manufacturer,
+            model,
+            serialNumber || '',
+            location || '',
+            publicKey || ''
+        ]);
+        
+        res.json({
+            success: true,
+            data: {
+                to: DIDLAB_CONFIG.contractAddress,
+                data: data,
+                value: '0'
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
-    
-    if (device.model.includes('Humidity')) {
-        data = {
-            ...data,
-            humidity: (30 + Math.random() * 40).toFixed(1),
-            unit: 'percentage'
-        };
+});
+
+// Get device by ID
+app.get('/api/devices/:deviceId', async (req, res) => {
+    try {
+        if (!contract) {
+            return res.status(400).json({
+                success: false,
+                error: 'Contract not initialized'
+            });
+        }
+        
+        const deviceId = req.params.deviceId;
+        const device = await contract.getDevice(deviceId);
+        
+        res.json({
+            success: true,
+            data: {
+                did: device.did,
+                name: device.name,
+                deviceType: device.deviceType,
+                manufacturer: device.manufacturer,
+                model: device.model,
+                serialNumber: device.serialNumber,
+                location: device.location,
+                publicKey: device.publicKey,
+                owner: device.owner,
+                registeredAt: device.registeredAt.toNumber(),
+                isActive: device.isActive
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
-    
-    if (device.model.includes('Motion')) {
-        data = {
-            ...data,
-            motion: Math.random() > 0.7,
-            confidence: (85 + Math.random() * 15).toFixed(1)
-        };
-    }
-
-    // Add common sensor data
-    data.battery = (70 + Math.random() * 30).toFixed(0);
-    data.signalStrength = (-80 + Math.random() * 40).toFixed(0);
-
-    return data;
-}
-
-// API Routes
-
-// Get all devices
-app.get('/api/devices', (req, res) => {
-    res.json({
-        success: true,
-        devices: db.devices
-    });
 });
 
 // Get devices by owner
-app.get('/api/devices/owner/:address', (req, res) => {
-    const ownerAddress = req.params.address.toLowerCase();
-    const devices = db.devices.filter(d => 
-        d.owner.toLowerCase() === ownerAddress
-    );
-    
-    res.json({
-        success: true,
-        devices
-    });
-});
-
-// Get device by DID
-app.get('/api/devices/did/:did', (req, res) => {
-    const device = db.devices.find(d => d.did === req.params.did);
-    
-    if (!device) {
-        return res.status(404).json({
-            success: false,
-            error: 'Device not found'
-        });
-    }
-    
-    res.json({
-        success: true,
-        device
-    });
-});
-
-// Issue new device certificate
-app.post('/api/devices/issue', (req, res) => {
-    const { did, pubKey, make, model, owner, metadata } = req.body;
-    
-    // Validate required fields
-    if (!did || !pubKey || !make || !model || !owner) {
-        return res.status(400).json({
-            success: false,
-            error: 'Missing required fields'
-        });
-    }
-    
-    // Check if DID already exists
-    if (db.devices.find(d => d.did === did)) {
-        return res.status(400).json({
-            success: false,
-            error: 'Device DID already exists'
-        });
-    }
-    
-    const device = {
-        id: ++db.deviceIdCounter,
-        did,
-        pubKey,
-        make,
-        model,
-        owner: owner.toLowerCase(),
-        certId: `DCERT-${String(db.deviceIdCounter).padStart(3, '0')}`,
-        issuedAt: Date.now(),
-        metadata: metadata || {}
-    };
-    
-    db.devices.push(device);
-    
-    res.json({
-        success: true,
-        device,
-        message: 'Device certificate issued successfully'
-    });
-});
-
-// Get all access passes
-app.get('/api/access-passes', (req, res) => {
-    res.json({
-        success: true,
-        accessPasses: db.accessPasses
-    });
-});
-
-// Get access passes for a device
-app.get('/api/access-passes/device/:deviceId', (req, res) => {
-    const deviceId = parseInt(req.params.deviceId);
-    const passes = db.accessPasses.filter(p => p.deviceId === deviceId);
-    
-    res.json({
-        success: true,
-        accessPasses: passes
-    });
-});
-
-// Get access passes for a viewer
-app.get('/api/access-passes/viewer/:address', (req, res) => {
-    const viewerAddress = req.params.address.toLowerCase();
-    const passes = db.accessPasses.filter(p => 
-        p.viewer.toLowerCase() === viewerAddress
-    );
-    
-    res.json({
-        success: true,
-        accessPasses: passes
-    });
-});
-
-// Grant access pass
-app.post('/api/access-passes/grant', (req, res) => {
-    const { deviceId, viewer, duration, grantedBy } = req.body;
-    
-    // Validate required fields
-    if (!deviceId || !viewer || !duration || !grantedBy) {
-        return res.status(400).json({
-            success: false,
-            error: 'Missing required fields'
-        });
-    }
-    
-    const device = db.devices.find(d => d.id === parseInt(deviceId));
-    if (!device) {
-        return res.status(404).json({
-            success: false,
-            error: 'Device not found'
-        });
-    }
-    
-    // Check if granter owns the device
-    if (device.owner.toLowerCase() !== grantedBy.toLowerCase()) {
-        return res.status(403).json({
-            success: false,
-            error: 'Only device owner can grant access passes'
-        });
-    }
-    
-    const accessPass = {
-        id: ++db.passIdCounter,
-        passId: `APASS-${String(db.passIdCounter).padStart(3, '0')}`,
-        deviceId: device.id,
-        deviceDid: device.did,
-        viewer: viewer.toLowerCase(),
-        grantedBy: grantedBy.toLowerCase(),
-        grantedAt: Date.now(),
-        expiresAt: Date.now() + (parseInt(duration) * 1000)
-    };
-    
-    db.accessPasses.push(accessPass);
-    
-    res.json({
-        success: true,
-        accessPass,
-        message: 'Access pass granted successfully'
-    });
-});
-
-// Check access and get stream
-app.post('/api/stream/access', (req, res) => {
-    const { deviceDid, viewerAddress } = req.body;
-    
-    if (!deviceDid || !viewerAddress) {
-        return res.status(400).json({
-            success: false,
-            error: 'Missing required fields'
-        });
-    }
-    
-    const device = db.devices.find(d => d.did === deviceDid);
-    if (!device) {
-        return res.status(404).json({
-            success: false,
-            error: 'Device not found'
-        });
-    }
-    
-    // Check for valid access pass
-    const validPass = db.accessPasses.find(p => 
-        p.deviceDid === deviceDid &&
-        p.viewer.toLowerCase() === viewerAddress.toLowerCase() &&
-        p.expiresAt > Date.now()
-    );
-    
-    if (!validPass) {
-        return res.status(403).json({
-            success: false,
-            error: 'No valid access pass found',
-            hasAccess: false
-        });
-    }
-    
-    // Generate stream data
-    const streamData = generateSensorData(device.id);
-    
-    // Log access (in production, this would be stored persistently)
-    const accessLog = {
-        deviceDid,
-        viewer: viewerAddress,
-        timestamp: Date.now(),
-        passId: validPass.passId
-    };
-    
-    res.json({
-        success: true,
-        hasAccess: true,
-        accessPass: validPass,
-        streamData,
-        accessLog,
-        message: 'Access granted'
-    });
-});
-
-// Get stream data (requires valid access)
-app.get('/api/stream/:deviceDid', (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-        return res.status(401).json({
-            success: false,
-            error: 'No authorization provided'
-        });
-    }
-    
-    const viewerAddress = authHeader.replace('Bearer ', '');
-    const deviceDid = req.params.deviceDid;
-    
-    const device = db.devices.find(d => d.did === deviceDid);
-    if (!device) {
-        return res.status(404).json({
-            success: false,
-            error: 'Device not found'
-        });
-    }
-    
-    // Check for valid access pass
-    const validPass = db.accessPasses.find(p => 
-        p.deviceDid === deviceDid &&
-        p.viewer.toLowerCase() === viewerAddress.toLowerCase() &&
-        p.expiresAt > Date.now()
-    );
-    
-    if (!validPass) {
-        return res.status(403).json({
-            success: false,
-            error: 'Access denied'
-        });
-    }
-    
-    // Generate and return stream data
-    const streamData = generateSensorData(device.id);
-    
-    res.json({
-        success: true,
-        streamData,
-        device: {
-            did: device.did,
-            make: device.make,
-            model: device.model,
-            metadata: device.metadata
+app.get('/api/devices/owner/:address', async (req, res) => {
+    try {
+        if (!contract) {
+            return res.status(400).json({
+                success: false,
+                error: 'Contract not initialized'
+            });
         }
-    });
-});
-
-// Revoke access pass
-app.delete('/api/access-passes/:passId', (req, res) => {
-    const { revokedBy } = req.body;
-    const passId = req.params.passId;
-    
-    const passIndex = db.accessPasses.findIndex(p => p.passId === passId);
-    if (passIndex === -1) {
-        return res.status(404).json({
+        
+        const address = req.params.address;
+        
+        if (!ethers.utils.isAddress(address)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid address'
+            });
+        }
+        
+        const deviceIds = await contract.getOwnerDevices(address);
+        
+        // Fetch full device details
+        const devices = await Promise.all(
+            deviceIds.map(async (id) => {
+                const device = await contract.getDevice(id);
+                return {
+                    deviceId: id,
+                    did: device.did,
+                    name: device.name,
+                    deviceType: device.deviceType,
+                    manufacturer: device.manufacturer,
+                    model: device.model,
+                    serialNumber: device.serialNumber,
+                    location: device.location,
+                    owner: device.owner,
+                    registeredAt: device.registeredAt.toNumber(),
+                    isActive: device.isActive
+                };
+            })
+        );
+        
+        res.json({
+            success: true,
+            data: devices
+        });
+    } catch (error) {
+        res.status(500).json({
             success: false,
-            error: 'Access pass not found'
+            error: error.message
         });
     }
-    
-    const pass = db.accessPasses[passIndex];
-    const device = db.devices.find(d => d.id === pass.deviceId);
-    
-    // Check if revoker owns the device
-    if (device.owner.toLowerCase() !== revokedBy.toLowerCase()) {
-        return res.status(403).json({
-            success: false,
-            error: 'Only device owner can revoke access passes'
-        });
-    }
-    
-    // Set expiration to now (soft delete)
-    db.accessPasses[passIndex].expiresAt = Date.now();
-    
-    res.json({
-        success: true,
-        message: 'Access pass revoked successfully'
-    });
 });
 
-// Root API endpoint with dynamic URL
-app.get('/api', (req, res) => {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    
-    res.json({
-        success: true,
-        message: 'ThingID API Server',
-        version: '1.0.0',
-        baseUrl: baseUrl,
-        status: 'operational',
-        endpoints: {
-            devices: {
-                'GET /api/devices': 'Get all devices',
-                'GET /api/devices/owner/:address': 'Get devices by owner',
-                'GET /api/devices/did/:did': 'Get device by DID',
-                'POST /api/devices/issue': 'Issue new device certificate'
-            },
-            accessPasses: {
-                'GET /api/access-passes': 'Get all access passes',
-                'GET /api/access-passes/device/:deviceId': 'Get passes for a device',
-                'GET /api/access-passes/viewer/:address': 'Get passes for a viewer',
-                'POST /api/access-passes/grant': 'Grant new access pass',
-                'DELETE /api/access-passes/:passId': 'Revoke access pass'
-            },
-            streams: {
-                'POST /api/stream/access': 'Check access and get stream',
-                'GET /api/stream/:deviceDid': 'Get stream data (requires auth)'
-            },
-            system: {
-                'GET /api/health': 'Health check and stats',
-                'GET /api': 'This help message'
+// Get total devices
+app.get('/api/devices/stats/total', async (req, res) => {
+    try {
+        if (!contract) {
+            return res.status(400).json({
+                success: false,
+                error: 'Contract not initialized'
+            });
+        }
+        
+        const total = await contract.getTotalDevices();
+        
+        res.json({
+            success: true,
+            data: {
+                totalDevices: total.toNumber()
             }
-        },
-        stats: {
-            devices: db.devices.length,
-            accessPasses: db.accessPasses.length,
-            activePassses: db.accessPasses.filter(p => p.expiresAt > Date.now()).length
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============ ACCESS CONTROL ENDPOINTS ============
+
+// Grant access (encode transaction)
+app.post('/api/access/grant/encode', (req, res) => {
+    try {
+        const { deviceId, viewer, duration } = req.body;
+        
+        if (!contract) {
+            return res.status(400).json({
+                success: false,
+                error: 'Contract not initialized'
+            });
         }
-    });
-});
-
-// Health check endpoint - IMPORTANT for Railway
-app.get('/api/health', (req, res) => {
-    res.json({
-        success: true,
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        environment: process.env.NODE_ENV || 'development',
-        port: PORT,
-        stats: {
-            devices: db.devices.length,
-            accessPasses: db.accessPasses.length,
-            activePassses: db.accessPasses.filter(p => p.expiresAt > Date.now()).length
+        
+        if (!deviceId || !viewer || !duration) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields'
+            });
         }
-    });
+        
+        if (!ethers.utils.isAddress(viewer)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid viewer address'
+            });
+        }
+        
+        const iface = new ethers.utils.Interface(THINGID_ABI);
+        const data = iface.encodeFunctionData('grantAccess', [
+            deviceId,
+            viewer,
+            duration
+        ]);
+        
+        res.json({
+            success: true,
+            data: {
+                to: DIDLAB_CONFIG.contractAddress,
+                data: data,
+                value: '0'
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
 });
 
-// Root route - redirect to API
-app.get('/', (req, res) => {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    res.json({
-        message: 'Welcome to ThingID Backend',
-        api: baseUrl + '/api',
-        health: baseUrl + '/api/health',
-        documentation: 'Visit /api for available endpoints',
-        deployment: 'Railway',
-        status: 'operational'
-    });
+// Check access
+app.get('/api/access/check/:deviceId/:viewer', async (req, res) => {
+    try {
+        if (!contract) {
+            return res.status(400).json({
+                success: false,
+                error: 'Contract not initialized'
+            });
+        }
+        
+        const { deviceId, viewer } = req.params;
+        
+        if (!ethers.utils.isAddress(viewer)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid viewer address'
+            });
+        }
+        
+        const hasAccess = await contract.hasAccess(deviceId, viewer);
+        const expiration = await contract.getAccessExpiration(deviceId, viewer);
+        
+        res.json({
+            success: true,
+            data: {
+                hasAccess: hasAccess,
+                expiresAt: expiration.toNumber(),
+                isExpired: expiration.toNumber() < Math.floor(Date.now() / 1000)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
 });
 
-// Error handling for 404
-app.use((req, res, next) => {
-    res.status(404).json({
-        success: false,
-        error: 'Endpoint not found',
-        message: `The endpoint ${req.method} ${req.url} does not exist`,
-        suggestion: 'Visit /api to see available endpoints'
-    });
+// Get access passes for device
+app.get('/api/access/passes/:deviceId', async (req, res) => {
+    try {
+        if (!contract) {
+            return res.status(400).json({
+                success: false,
+                error: 'Contract not initialized'
+            });
+        }
+        
+        const deviceId = req.params.deviceId;
+        const passes = await contract.getDeviceAccessPasses(deviceId);
+        
+        const formattedPasses = passes.map(pass => ({
+            deviceOwner: pass.device_owner,
+            viewer: pass.viewer,
+            grantedAt: pass.grantedAt.toNumber(),
+            expiresAt: pass.expiresAt.toNumber(),
+            isActive: pass.isActive,
+            isExpired: pass.expiresAt.toNumber() < Math.floor(Date.now() / 1000)
+        }));
+        
+        res.json({
+            success: true,
+            data: formattedPasses
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
 });
 
-// Error handling middleware
+// ============ EVENTS ============
+
+// Listen for contract events
+app.get('/api/events/devices', async (req, res) => {
+    try {
+        if (!contract) {
+            return res.status(400).json({
+                success: false,
+                error: 'Contract not initialized'
+            });
+        }
+        
+        const fromBlock = req.query.fromBlock || 'latest';
+        const filter = contract.filters.DeviceRegistered();
+        const events = await contract.queryFilter(filter, fromBlock);
+        
+        const formattedEvents = events.map(event => ({
+            deviceId: event.args.deviceId,
+            did: event.args.did,
+            owner: event.args.owner,
+            name: event.args.name,
+            deviceType: event.args.deviceType,
+            timestamp: event.args.timestamp.toNumber(),
+            blockNumber: event.blockNumber,
+            transactionHash: event.transactionHash
+        }));
+        
+        res.json({
+            success: true,
+            data: formattedEvents
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============ UTILITIES ============
+
+// Estimate gas for transaction
+app.post('/api/utils/estimate-gas', async (req, res) => {
+    try {
+        const { to, data, from } = req.body;
+        
+        const gasEstimate = await provider.estimateGas({
+            to: to,
+            data: data,
+            from: from || ethers.constants.AddressZero
+        });
+        
+        res.json({
+            success: true,
+            data: {
+                gasEstimate: gasEstimate.toString(),
+                gasEstimateGwei: ethers.utils.formatUnits(gasEstimate, 'gwei')
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Get account balance
+app.get('/api/account/:address/balance', async (req, res) => {
+    try {
+        const address = req.params.address;
+        
+        if (!ethers.utils.isAddress(address)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid address'
+            });
+        }
+        
+        const balance = await provider.getBalance(address);
+        
+        res.json({
+            success: true,
+            data: {
+                address: address,
+                balance: balance.toString(),
+                balanceEther: ethers.utils.formatEther(balance),
+                symbol: 'TT'
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============ ERROR HANDLING ============
+
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({
         success: false,
-        error: 'Internal server error',
-        message: err.message
+        error: 'Internal server error'
     });
 });
 
-// Start server - Fixed console.log
-app.listen(PORT, () => {
-    console.log(`\n🚀 ThingID Backend Server running on port ${PORT}`);
-    console.log(`📡 API available at http://localhost:${PORT}/api`);
-    console.log(`🌐 Railway URL will be: https://[your-app].railway.app/api`);
-    console.log('\n📋 Available endpoints:');
-    console.log('  GET  /                                 - Server info');
-    console.log('  GET  /api                              - API information');
-    console.log('  GET  /api/health                       - Health check');
-    console.log('  GET  /api/devices                      - List all devices');
-    console.log('  GET  /api/devices/owner/:address       - Get devices by owner');
-    console.log('  GET  /api/devices/did/:did             - Get device by DID');
-    console.log('  POST /api/devices/issue                - Issue device certificate');
-    console.log('  GET  /api/access-passes                - List all passes');
-    console.log('  GET  /api/access-passes/device/:id     - Get passes for device');
-    console.log('  GET  /api/access-passes/viewer/:addr   - Get passes for viewer');
-    console.log('  POST /api/access-passes/grant          - Grant access pass');
-    console.log('  POST /api/stream/access                - Check access & stream');
-    console.log('  GET  /api/stream/:deviceDid            - Get stream data');
-    console.log('  DELETE /api/access-passes/:passId      - Revoke access pass');
-    console.log('\n✅ Server initialized with sample data:');
-    console.log(`   - ${db.devices.length} devices`);
-    console.log(`   - ${db.accessPasses.length} access passes`);
-    console.log(`\n💡 Test the API: http://localhost:${PORT}/api`);
-    console.log('🚀 Server is ready for connections!');
-});
+// ============ START SERVER ============
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('SIGTERM signal received: closing HTTP server');
-    process.exit(0);
-});
+async function startServer() {
+    const initialized = initializeProvider();
+    
+    if (!initialized) {
+        console.error('⚠️  Warning: Provider initialization failed. Some features may not work.');
+    }
+    
+    app.listen(PORT, () => {
+        console.log(`
+╔════════════════════════════════════════════════════════╗
+║           ThingID Backend API Server                    ║
+║           DIDLab Network Integration                    ║
+╚════════════════════════════════════════════════════════╝
 
-process.on('SIGINT', () => {
-    console.log('SIGINT signal received: closing HTTP server');
-    process.exit(0);
-});
+🚀 Server running on port ${PORT}
+🌐 Network: DIDLab QBFT (Chain ID: ${DIDLAB_CONFIG.chainId})
+📡 RPC: ${DIDLAB_CONFIG.rpcUrl}
+📝 Contract: ${DIDLAB_CONFIG.contractAddress || 'Not deployed'}
+
+Endpoints:
+  GET  /health
+  GET  /api/network/info
+  POST /api/devices/register/encode
+  GET  /api/devices/:deviceId
+  GET  /api/devices/owner/:address
+  GET  /api/devices/stats/total
+  POST /api/access/grant/encode
+  GET  /api/access/check/:deviceId/:viewer
+  GET  /api/access/passes/:deviceId
+  GET  /api/events/devices
+  GET  /api/account/:address/balance
+  POST /api/utils/estimate-gas
+        `);
+    });
+}
+
+startServer();
 
 module.exports = app;

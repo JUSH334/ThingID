@@ -255,6 +255,25 @@
             margin: 10px 0;
         }
 
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .stat-card h2 {
+            font-size: 42px;
+            margin-bottom: 8px;
+        }
+
+        .stat-card p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
         @keyframes slideIn {
             from {
                 opacity: 0;
@@ -292,6 +311,10 @@
                 <strong>📡 DIDLab Network Configuration</strong>
                 <div class="network-grid">
                     <div class="network-card">
+                        <div style="font-size: 11px; opacity: 0.8;">CONTRACT ADDRESS</div>
+                        <div style="font-weight: 600; font-size: 11px; margin-top: 5px;">0x5A0d...CAC4</div>
+                    </div>
+                    <div class="network-card">
                         <div style="font-size: 11px; opacity: 0.8;">RPC ENDPOINT</div>
                         <div style="font-weight: 600; font-size: 13px; margin-top: 5px;">https://eth.didlab.org</div>
                     </div>
@@ -308,10 +331,6 @@
                         <div style="font-weight: 600; font-size: 13px; margin-top: 5px;">explorer.didlab.org</div>
                     </div>
                     <div class="network-card">
-                        <div style="font-size: 11px; opacity: 0.8;">FAUCET</div>
-                        <div style="font-weight: 600; font-size: 13px; margin-top: 5px;">faucet.didlab.org</div>
-                    </div>
-                    <div class="network-card">
                         <div style="font-size: 11px; opacity: 0.8;">LATEST BLOCK</div>
                         <div style="font-weight: 600; font-size: 13px; margin-top: 5px;" id="latestBlock">Loading...</div>
                     </div>
@@ -324,6 +343,7 @@
                     <div><span class="status-dot" id="ethersStatus"></span> Ethers.js: <span id="ethersText">Loading...</span></div>
                     <div><span class="status-dot" id="metamaskStatus"></span> MetaMask: <span id="metamaskText">Checking...</span></div>
                     <div><span class="status-dot" id="didlabStatus"></span> DIDLab RPC: <span id="didlabText">Connecting...</span></div>
+                    <div><span class="status-dot" id="contractStatus"></span> Smart Contract: <span id="contractText">Not Connected</span></div>
                 </div>
             </div>
         </div>
@@ -361,6 +381,7 @@
         <div class="tabs">
             <button class="tab active" onclick="switchTab('register')">📝 Register Device</button>
             <button class="tab" onclick="switchTab('devices')">📊 My Devices</button>
+            <button class="tab" onclick="switchTab('global')">🌍 Global Activity</button>
             <button class="tab" onclick="switchTab('access')">🔐 Access Control</button>
             <button class="tab" onclick="switchTab('stream')">📡 Live Stream</button>
             <button class="tab" onclick="switchTab('info')">ℹ️ DIDLab Info</button>
@@ -368,7 +389,7 @@
 
         <!-- Register Panel -->
         <div id="register-panel" class="panel active">
-            <h2>Register New IoT Device</h2>
+            <h2>Register New IoT Device on Blockchain</h2>
             <div id="register-message"></div>
             
             <div class="form-group">
@@ -409,21 +430,47 @@
             </div>
             
             <button class="btn" onclick="registerDevice()">
-                Register Device on DIDLab
+                Register Device on DIDLab Blockchain
             </button>
         </div>
 
         <!-- Devices Panel -->
         <div id="devices-panel" class="panel">
-            <h2>My Devices on DIDLab</h2>
+            <h2>My Devices on DIDLab Blockchain</h2>
             <div id="devices-message"></div>
             
             <button class="btn" onclick="loadMyDevices()">
-                Refresh Devices
+                Refresh My Devices
             </button>
             
             <div id="devicesList" style="margin-top: 20px;">
                 <p>No devices registered yet.</p>
+            </div>
+        </div>
+
+        <!-- Global Activity Panel -->
+        <div id="global-panel" class="panel">
+            <h2>🌍 Global Network Activity</h2>
+            <div id="global-message"></div>
+            
+            <button class="btn" onclick="loadGlobalActivity()">
+                Refresh Global Activity
+            </button>
+            
+            <div id="globalStats" style="margin-top: 20px;">
+                <div class="device-card">
+                    <h3>📊 Network Statistics</h3>
+                    <div id="statsContent" style="margin-top: 15px;">
+                        <p>Click "Refresh Global Activity" to load stats...</p>
+                    </div>
+                </div>
+                
+                <div class="device-card">
+                    <h3>🆕 Recent Device Registrations (All Users)</h3>
+                    <div id="recentActivity" style="margin-top: 15px;">
+                        <p>Loading recent registrations...</p>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -511,7 +558,8 @@ RPC URL: https://eth.didlab.org<br>
 Chain ID: 252501<br>
 Currency Symbol: TT (TRUST)<br>
 Block Explorer: https://explorer.didlab.org<br>
-Faucet: https://faucet.didlab.org
+Faucet: https://faucet.didlab.org<br>
+Contract: 0x5A0d15B2E16b67Bf8dCbd2DfBf147d4A20e5CAC4
                 </div>
             </div>
 
@@ -541,6 +589,8 @@ Faucet: https://faucet.didlab.org
                     <li>Support for DID (Decentralized Identifiers)</li>
                     <li>NFT and soulbound credentials</li>
                     <li>DIDLab Swap AMM for learning</li>
+                    <li>Smart contract deployed and active</li>
+                    <li>Global device registry visible to all</li>
                 </ul>
             </div>
         </div>
@@ -560,10 +610,25 @@ Faucet: https://faucet.didlab.org
             blockExplorerUrls: ['https://explorer.didlab.org']
         };
 
+        // Smart Contract Configuration
+        const CONTRACT_ADDRESS = '0x5A0d15B2E16b67Bf8dCbd2DfBf147d4A20e5CAC4';
+        const CONTRACT_ABI = [
+            "function registerDevice(string _did, string _name, string _deviceType, string _manufacturer, string _model, string _serialNumber, string _location, string _publicKey) returns (bytes32)",
+            "function getDevice(bytes32 deviceId) view returns (tuple(string did, string name, string deviceType, string manufacturer, string model, string serialNumber, string location, string publicKey, address owner, uint256 registeredAt, bool isActive))",
+            "function getOwnerDevices(address owner) view returns (bytes32[])",
+            "function getTotalDevices() view returns (uint256)",
+            "function grantAccess(bytes32 deviceId, address viewer, uint256 duration)",
+            "function hasAccess(bytes32 deviceId, address viewer) view returns (bool)",
+            "function VERSION() view returns (string)",
+            "function NETWORK() view returns (string)",
+            "event DeviceRegistered(bytes32 indexed deviceId, string did, address indexed owner, string name, string deviceType, uint256 timestamp)"
+        ];
+
         // Global variables
         let provider = null;
         let signer = null;
         let currentAccount = null;
+        let contract = null;
         let devices = [];
         let accessPasses = [];
         let streamInterval = null;
@@ -695,11 +760,17 @@ Faucet: https://faucet.didlab.org
                     document.getElementById('walletBalance').textContent = 
                         ethers.utils.formatEther(balance).slice(0, 6) + ' TT';
                     
+                    // Initialize contract
+                    contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+                    console.log('✅ Contract initialized:', CONTRACT_ADDRESS);
+                    document.getElementById('contractStatus').className = 'status-dot status-connected';
+                    document.getElementById('contractText').textContent = 'Connected ✓';
+                    
                     document.getElementById('connectBtn').textContent = 'Connected to DIDLab ✓';
                     document.getElementById('connectBtn').disabled = true;
                     document.getElementById('addNetworkBtn').style.display = 'none';
                     
-                    showMessage('register-message', '✅ Connected to DIDLab network!', 'success');
+                    showMessage('register-message', '✅ Connected to DIDLab network and smart contract!', 'success');
                     loadMyDevices();
                 }
             } catch (error) {
@@ -708,10 +779,15 @@ Faucet: https://faucet.didlab.org
             }
         }
 
-        // Register device on DIDLab
+        // Register device on DIDLab Blockchain
         async function registerDevice() {
             if (!currentAccount) {
                 showMessage('register-message', '⚠️ Please connect wallet first!', 'error');
+                return;
+            }
+
+            if (!contract) {
+                showMessage('register-message', '⚠️ Contract not initialized!', 'error');
                 return;
             }
 
@@ -719,8 +795,8 @@ Faucet: https://faucet.didlab.org
             const type = document.getElementById('deviceType').value;
             const manufacturer = document.getElementById('manufacturer').value;
             const model = document.getElementById('model').value;
-            const serialNumber = document.getElementById('serialNumber').value;
-            const location = document.getElementById('location').value;
+            const serialNumber = document.getElementById('serialNumber').value || 'N/A';
+            const location = document.getElementById('location').value || 'Not specified';
 
             if (!name || !manufacturer || !model) {
                 showMessage('register-message', '⚠️ Please fill required fields!', 'error');
@@ -728,6 +804,8 @@ Faucet: https://faucet.didlab.org
             }
 
             try {
+                showMessage('register-message', '⏳ Registering device on blockchain...', 'info');
+                
                 // Generate DID following DIDLab convention
                 const timestamp = Date.now();
                 const did = `did:didlab:device:${type}:${timestamp}`;
@@ -736,28 +814,58 @@ Faucet: https://faucet.didlab.org
                 const wallet = ethers.Wallet.createRandom();
                 const pubKey = wallet.publicKey;
 
-                const device = {
-                    id: 'device-' + timestamp,
+                // Call smart contract
+                console.log('📝 Sending transaction to blockchain...');
+                const tx = await contract.registerDevice(
                     did,
                     name,
                     type,
                     manufacturer,
                     model,
-                    serialNumber: serialNumber || 'N/A',
-                    location: location || 'Not specified',
+                    serialNumber,
+                    location,
+                    pubKey
+                );
+
+                showMessage('register-message', 
+                    `⏳ Transaction sent! Hash: ${tx.hash}<br>Waiting for confirmation...`, 
+                    'info'
+                );
+
+                // Wait for confirmation
+                const receipt = await tx.wait();
+                console.log('✅ Transaction confirmed:', receipt);
+
+                // Extract device ID from event
+                const event = receipt.events?.find(e => e.event === 'DeviceRegistered');
+                const deviceId = event ? event.args.deviceId : 'device-' + timestamp;
+
+                const device = {
+                    id: deviceId,
+                    did,
+                    name,
+                    type,
+                    manufacturer,
+                    model,
+                    serialNumber,
+                    location,
                     owner: currentAccount,
                     pubKey,
                     timestamp: new Date().toISOString(),
                     status: 'active',
-                    network: 'DIDLab QBFT'
+                    network: 'DIDLab QBFT',
+                    txHash: tx.hash,
+                    blockNumber: receipt.blockNumber
                 };
 
-                // Store locally
+                // Store locally for quick access
                 devices.push(device);
                 localStorage.setItem('thingid_devices_didlab_' + currentAccount, JSON.stringify(devices));
 
                 showMessage('register-message', 
-                    `✅ Device "${name}" registered on DIDLab!<br>DID: ${did}`, 
+                    `✅ Device "${name}" registered on DIDLab blockchain!<br>
+                    DID: ${did}<br>
+                    Tx: <a href="https://explorer.didlab.org/tx/${tx.hash}" target="_blank" style="color: #667eea;">View on Explorer</a>`, 
                     'success'
                 );
 
@@ -768,27 +876,88 @@ Faucet: https://faucet.didlab.org
                 
                 loadMyDevices();
             } catch (error) {
-                console.error('Registration error:', error);
-                showMessage('register-message', '❌ Registration failed: ' + error.message, 'error');
+                console.error('❌ Registration error:', error);
+                
+                if (error.code === 4001) {
+                    showMessage('register-message', '⚠️ Transaction rejected by user', 'error');
+                } else if (error.message.includes('insufficient funds')) {
+                    showMessage('register-message', '❌ Insufficient TT tokens for gas', 'error');
+                } else {
+                    showMessage('register-message', '❌ Registration failed: ' + error.message, 'error');
+                }
             }
         }
 
-        // Load devices
-        function loadMyDevices() {
+        // Load devices from blockchain
+        async function loadMyDevices() {
             if (!currentAccount) {
                 document.getElementById('devicesList').innerHTML = 
                     '<p>Please connect wallet to view devices.</p>';
                 return;
             }
 
+            try {
+                if (contract) {
+                    console.log('📊 Loading devices from blockchain...');
+                    const deviceIds = await contract.getOwnerDevices(currentAccount);
+                    
+                    if (deviceIds.length > 0) {
+                        showMessage('devices-message', '⏳ Loading devices from blockchain...', 'info');
+                        
+                        const blockchainDevices = await Promise.all(
+                            deviceIds.map(async (id) => {
+                                try {
+                                    const device = await contract.getDevice(id);
+                                    
+                                    const saved = localStorage.getItem('thingid_devices_didlab_' + currentAccount);
+                                    let txHash = null;
+                                    if (saved) {
+                                        const localDevices = JSON.parse(saved);
+                                        const localDevice = localDevices.find(d => d.id === id);
+                                        txHash = localDevice?.txHash;
+                                    }
+                                    
+                                    return {
+                                        id: id,
+                                        did: device.did,
+                                        name: device.name,
+                                        type: device.deviceType,
+                                        manufacturer: device.manufacturer,
+                                        model: device.model,
+                                        serialNumber: device.serialNumber,
+                                        location: device.location,
+                                        owner: device.owner,
+                                        registeredAt: device.registeredAt.toNumber(),
+                                        status: device.isActive ? 'active' : 'inactive',
+                                        network: 'DIDLab QBFT (Blockchain)',
+                                        txHash: txHash
+                                    };
+                                } catch (e) {
+                                    console.error('Error loading device:', e);
+                                    return null;
+                                }
+                            })
+                        );
+                        
+                        devices = blockchainDevices.filter(d => d !== null);
+                        localStorage.setItem('thingid_devices_didlab_' + currentAccount, JSON.stringify(devices));
+                        
+                        showMessage('devices-message', `✅ Loaded ${devices.length} devices from blockchain`, 'success');
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading from blockchain:', error);
+                showMessage('devices-message', '⚠️ Loading from local storage...', 'info');
+            }
+
             const saved = localStorage.getItem('thingid_devices_didlab_' + currentAccount);
-            if (saved) {
+            if (saved && devices.length === 0) {
                 devices = JSON.parse(saved);
             }
 
             if (devices.length === 0) {
                 document.getElementById('devicesList').innerHTML = 
-                    '<p>No devices registered yet.</p>';
+                    '<p>No devices registered yet. Register your first device!</p>';
                 return;
             }
 
@@ -809,22 +978,118 @@ Faucet: https://faucet.didlab.org
                         <div class="code-block" style="font-size: 11px; margin-top: 5px;">${device.did}</div>
                     </div>
                     <p style="font-size: 12px; color: #64748b; margin-top: 10px;">
-                        Registered: ${new Date(device.timestamp).toLocaleString()}
+                        Registered: ${new Date(device.timestamp || device.registeredAt * 1000).toLocaleString()}
                     </p>
-                    <a href="https://explorer.didlab.org/address/${device.owner}" target="_blank" 
-                       style="color: #667eea; text-decoration: none; font-size: 14px; margin-top: 5px; display: inline-block;">
-                        View on Explorer →
-                    </a>
+                    <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+                        ${device.txHash ? `
+                            <a href="https://explorer.didlab.org/tx/${device.txHash}" target="_blank" 
+                               style="color: #667eea; text-decoration: none; font-size: 14px;">
+                                📊 View Transaction →
+                            </a>
+                        ` : ''}
+                        <a href="https://explorer.didlab.org/address/${device.owner}" target="_blank" 
+                           style="color: #10b981; text-decoration: none; font-size: 14px;">
+                            👤 View Owner →
+                        </a>
+                        <a href="https://explorer.didlab.org/address/${CONTRACT_ADDRESS}" target="_blank" 
+                           style="color: #f59e0b; text-decoration: none; font-size: 14px;">
+                            📜 View Contract →
+                        </a>
+                    </div>
                 </div>
             `).join('');
 
             document.getElementById('devicesList').innerHTML = html;
 
-            // Update device selects
             const options = '<option value="">Select a device...</option>' +
                 devices.map(d => `<option value="${d.id}">${d.name} (${d.type})</option>`).join('');
             document.getElementById('grantDeviceSelect').innerHTML = options;
             document.getElementById('streamDeviceSelect').innerHTML = options;
+        }
+
+        // Load global activity
+        async function loadGlobalActivity() {
+            showMessage('global-message', '⏳ Loading global network data...', 'info');
+            
+            try {
+                const readOnlyContract = new ethers.Contract(
+                    CONTRACT_ADDRESS,
+                    CONTRACT_ABI,
+                    didlabProvider
+                );
+                
+                const totalDevices = await readOnlyContract.getTotalDevices();
+                const blockNumber = await didlabProvider.getBlockNumber();
+                
+                document.getElementById('statsContent').innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);">
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">TOTAL DEVICES</div>
+                            <div style="font-size: 42px; font-weight: 700;">${totalDevices}</div>
+                            <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">Registered Globally</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);">
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">NETWORK BLOCK</div>
+                            <div style="font-size: 42px; font-weight: 700;">${blockNumber.toLocaleString()}</div>
+                            <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">Current Height</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);">
+                            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">SMART CONTRACT</div>
+                            <div style="font-size: 16px; font-weight: 600; word-break: break-all; line-height: 1.4;">
+                                ${CONTRACT_ADDRESS.slice(0,10)}...${CONTRACT_ADDRESS.slice(-8)}
+                            </div>
+                            <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">ThingID v1.0.0</div>
+                        </div>
+                    </div>
+                `;
+                
+                try {
+                    const filter = readOnlyContract.filters.DeviceRegistered();
+                    const events = await readOnlyContract.queryFilter(filter, -10000, 'latest');
+                    
+                    if (events.length > 0) {
+                        const recentHTML = events.slice(-10).reverse().map(event => `
+                            <div style="padding: 15px; background: #f8fafc; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #667eea;">
+                                <div style="display: flex; justify-content: space-between; align-items: start; gap: 15px;">
+                                    <div style="flex: 1;">
+                                        <strong style="font-size: 16px;">${event.args.name}</strong>
+                                        <div style="font-size: 13px; color: #64748b; margin-top: 5px;">
+                                            Type: <strong>${event.args.deviceType}</strong> | 
+                                            Owner: <strong>${event.args.owner.slice(0,6)}...${event.args.owner.slice(-4)}</strong>
+                                        </div>
+                                        <div style="font-size: 12px; color: #94a3b8; margin-top: 3px; word-break: break-all;">
+                                            DID: ${event.args.did}
+                                        </div>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <a href="https://explorer.didlab.org/tx/${event.transactionHash}" target="_blank" 
+                                           style="color: #667eea; text-decoration: none; font-size: 13px; font-weight: 600;">
+                                            View Tx →
+                                        </a>
+                                        <div style="font-size: 11px; color: #94a3b8; margin-top: 5px;">
+                                            Block ${event.blockNumber}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+                        
+                        document.getElementById('recentActivity').innerHTML = recentHTML;
+                    } else {
+                        document.getElementById('recentActivity').innerHTML = '<p style="color: #64748b;">No registrations found yet. Be the first to register a device!</p>';
+                    }
+                } catch (e) {
+                    console.error('Error loading events:', e);
+                    document.getElementById('recentActivity').innerHTML = '<p style="color: #f59e0b;">⚠️ Event history not available. The contract may need more activity.</p>';
+                }
+                
+                showMessage('global-message', '✅ Global activity loaded successfully', 'success');
+                
+            } catch (error) {
+                console.error('Error loading global activity:', error);
+                showMessage('global-message', '❌ Failed to load: ' + error.message, 'error');
+                document.getElementById('statsContent').innerHTML = '<p style="color: #ef4444;">Error loading stats. Please try again.</p>';
+            }
         }
 
         // Grant access
