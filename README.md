@@ -15,11 +15,6 @@
 - [Technical Implementation](#technical-implementation)
 - [API Documentation](#api-documentation)
 - [Smart Contract Design](#smart-contract-design)
-- [Security Considerations](#security-considerations)
-- [Future Enhancements](#future-enhancements)
-- [Contributing](#contributing)
-- [License](#license)
-
 ---
 
 ## 🎯 Overview
