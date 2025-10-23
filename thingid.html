@@ -547,7 +547,10 @@
                     document.getElementById('ownerAddress').value = '';
                     document.getElementById('deviceMetadata').value = '';
                     
-                    refreshUI();
+                    // Important: Refresh ALL panels to update device lists
+                    setTimeout(() => {
+                        refreshUI();
+                    }, 500);
                 } else {
                     showMessage('issuer-message', data.error || 'Failed to issue certificate', 'error');
                 }
@@ -596,7 +599,11 @@
                         'success');
                     
                     document.getElementById('viewerAddress').value = '';
-                    refreshUI();
+                    
+                    // Refresh UI after a short delay to ensure data is updated
+                    setTimeout(() => {
+                        refreshUI();
+                    }, 500);
                 } else {
                     showMessage('owner-message', data.error || 'Failed to grant access pass', 'error');
                 }
@@ -623,17 +630,41 @@
                 return;
             }
             
+            console.log('Checking access for:');
+            console.log('Device DID:', deviceDid);
+            console.log('Viewer Address:', currentAccount);
+            
             try {
+                // First, let's check what access passes exist for this viewer
+                const passCheckResponse = await fetch(`${API_BASE_URL}/access-passes`);
+                const passCheckData = await passCheckResponse.json();
+                if (passCheckData.success) {
+                    const viewerPasses = passCheckData.accessPasses.filter(p => 
+                        p.viewer.toLowerCase() === currentAccount.toLowerCase()
+                    );
+                    console.log('All passes for this viewer:', viewerPasses);
+                    
+                    const relevantPass = viewerPasses.find(p => p.deviceDid === deviceDid);
+                    if (relevantPass) {
+                        console.log('Found relevant pass:', relevantPass);
+                        console.log('Pass expired?', relevantPass.expiresAt < Date.now());
+                        console.log('Expires at:', new Date(relevantPass.expiresAt).toLocaleString());
+                    } else {
+                        console.log('No pass found for this device DID');
+                    }
+                }
+                
                 const response = await fetch(`${API_BASE_URL}/stream/access`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        deviceDid,
+                        deviceDid: deviceDid.trim(),
                         viewerAddress: currentAccount
                     })
                 });
                 
                 const data = await response.json();
+                console.log('Access check response:', data);
                 
                 const streamViewer = document.getElementById('streamViewer');
                 streamViewer.style.display = 'block';
@@ -646,17 +677,27 @@
                     // Start streaming data
                     startStreamDisplay(deviceDid);
                 } else {
-                    showMessage('viewer-message', '❌ Access denied! No valid access pass found', 'error');
+                    showMessage('viewer-message', 
+                        `❌ Access denied! ${data.error || 'No valid access pass found'}`, 
+                        'error');
                     
+                    // Show helpful debug info
                     document.getElementById('streamContent').innerHTML = `
                         <div style="text-align: center;">
                             <h3>🔒 Access Denied</h3>
                             <p>You don't have permission to view this stream.</p>
-                            <p>Please request access from the device owner.</p>
+                            <p style="margin-top: 20px; font-size: 14px; color: #666;">
+                                <strong>Debug Info:</strong><br>
+                                Your Address: ${currentAccount}<br>
+                                Device DID: ${deviceDid}<br>
+                                Check console (F12) for more details
+                            </p>
+                            <p style="margin-top: 10px;">Please request access from the device owner.</p>
                         </div>
                     `;
                 }
             } catch (error) {
+                console.error('Error checking access:', error);
                 showMessage('viewer-message', 'Error: ' + error.message, 'error');
             }
         }
@@ -773,23 +814,40 @@
         }
 
         async function refreshOwnerPanel() {
-            if (!apiConnected || !currentAccount) return;
+            if (!apiConnected) {
+                document.getElementById('deviceList').innerHTML = '<p>API not connected. Please start the backend server.</p>';
+                return;
+            }
+            
+            if (!currentAccount) {
+                document.getElementById('deviceList').innerHTML = '<p>Please connect your wallet first.</p>';
+                return;
+            }
             
             try {
-                // Fetch devices owned by current user
-                const devicesResponse = await fetch(`${API_BASE_URL}/devices/owner/${currentAccount}`);
-                const devicesData = await devicesResponse.json();
+                // Fetch ALL devices first to show what's available
+                const allDevicesResponse = await fetch(`${API_BASE_URL}/devices`);
+                const allDevicesData = await allDevicesResponse.json();
                 
-                if (devicesData.success) {
-                    const devices = devicesData.devices;
+                if (allDevicesData.success) {
+                    // Filter devices owned by current user (case-insensitive)
+                    const allDevices = allDevicesData.devices || [];
+                    const myDevices = allDevices.filter(d => 
+                        d.owner.toLowerCase() === currentAccount.toLowerCase()
+                    );
+                    
+                    console.log('Current account:', currentAccount);
+                    console.log('All devices:', allDevices);
+                    console.log('My devices:', myDevices);
                     
                     // Display devices
-                    const deviceListHtml = devices.length > 0 ? devices.map(d => `
+                    const deviceListHtml = myDevices.length > 0 ? myDevices.map(d => `
                         <div class="device-card">
                             <h3>${d.make} ${d.model}</h3>
                             <div class="device-info">
                                 <p><strong>DID:</strong> ${d.did}</p>
                                 <p><strong>Certificate:</strong> ${d.certId}</p>
+                                <p><strong>Owner:</strong> ${d.owner}</p>
                                 <p><strong>Issued:</strong> ${new Date(d.issuedAt).toLocaleDateString()}</p>
                                 ${d.metadata && Object.keys(d.metadata).length > 0 ? 
                                     `<div class="metadata-display">
@@ -798,87 +856,104 @@
                                     </div>` : ''}
                             </div>
                         </div>
-                    `).join('') : '<p>No devices registered yet.</p>';
+                    `).join('') : `<p>No devices registered for address ${currentAccount}. Issue a device certificate with your address as owner.</p>`;
                     
                     document.getElementById('deviceList').innerHTML = deviceListHtml;
                     
                     // Update device selector
                     const deviceSelect = document.getElementById('deviceSelect');
-                    deviceSelect.innerHTML = '<option value="">Select a device...</option>' +
-                        devices.map(d => `<option value="${d.id}">${d.make} ${d.model} (${d.did})</option>`).join('');
-                    
-                    // Fetch and display access passes for owned devices
-                    const deviceIds = devices.map(d => d.id);
-                    let allPasses = [];
-                    
-                    for (const deviceId of deviceIds) {
-                        const passesResponse = await fetch(`${API_BASE_URL}/access-passes/device/${deviceId}`);
-                        const passesData = await passesResponse.json();
-                        if (passesData.success) {
-                            allPasses = [...allPasses, ...passesData.accessPasses];
-                        }
+                    if (myDevices.length > 0) {
+                        deviceSelect.innerHTML = '<option value="">Select a device...</option>' +
+                            myDevices.map(d => `<option value="${d.id}">${d.make} ${d.model} (${d.did})</option>`).join('');
+                    } else {
+                        deviceSelect.innerHTML = '<option value="">No devices available</option>';
                     }
                     
-                    const passListHtml = allPasses.length > 0 ? allPasses.map(p => {
-                        const isExpired = p.expiresAt < Date.now();
-                        const device = devices.find(d => d.id === p.deviceId);
-                        return `
-                            <div class="access-card">
-                                ${!isExpired ? `<button class="revoke-btn" onclick="revokeAccessPass('${p.passId}')">Revoke</button>` : ''}
-                                <h3>Pass ${p.passId}</h3>
-                                <div class="access-info">
-                                    <p><strong>Device:</strong> ${device ? device.did : 'Unknown'}</p>
-                                    <p><strong>Viewer:</strong> ${p.viewer}</p>
-                                    <p><strong>Status:</strong> 
-                                        <span class="status-badge ${isExpired ? 'status-expired' : 'status-active'}">
-                                            ${isExpired ? 'EXPIRED' : 'ACTIVE'}
-                                        </span>
-                                    </p>
-                                    <p><strong>Expires:</strong> ${new Date(p.expiresAt).toLocaleString()}</p>
+                    // Fetch and display access passes for owned devices
+                    if (myDevices.length > 0) {
+                        const deviceIds = myDevices.map(d => d.id);
+                        let allPasses = [];
+                        
+                        for (const deviceId of deviceIds) {
+                            const passesResponse = await fetch(`${API_BASE_URL}/access-passes/device/${deviceId}`);
+                            const passesData = await passesResponse.json();
+                            if (passesData.success) {
+                                allPasses = [...allPasses, ...passesData.accessPasses];
+                            }
+                        }
+                        
+                        const passListHtml = allPasses.length > 0 ? allPasses.map(p => {
+                            const isExpired = p.expiresAt < Date.now();
+                            const device = myDevices.find(d => d.id === p.deviceId);
+                            return `
+                                <div class="access-card">
+                                    ${!isExpired ? `<button class="revoke-btn" onclick="revokeAccessPass('${p.passId}')">Revoke</button>` : ''}
+                                    <h3>Pass ${p.passId}</h3>
+                                    <div class="access-info">
+                                        <p><strong>Device:</strong> ${device ? device.did : 'Unknown'}</p>
+                                        <p><strong>Viewer:</strong> ${p.viewer}</p>
+                                        <p><strong>Status:</strong> 
+                                            <span class="status-badge ${isExpired ? 'status-expired' : 'status-active'}">
+                                                ${isExpired ? 'EXPIRED' : 'ACTIVE'}
+                                            </span>
+                                        </p>
+                                        <p><strong>Expires:</strong> ${new Date(p.expiresAt).toLocaleString()}</p>
+                                    </div>
                                 </div>
-                            </div>
-                        `;
-                    }).join('') : '<p>No access passes granted yet.</p>';
-                    
-                    document.getElementById('accessPassList').innerHTML = passListHtml;
+                            `;
+                        }).join('') : '<p>No access passes granted yet.</p>';
+                        
+                        document.getElementById('accessPassList').innerHTML = passListHtml;
+                    } else {
+                        document.getElementById('accessPassList').innerHTML = '<p>No devices to manage access for.</p>';
+                    }
                 }
             } catch (error) {
                 console.error('Failed to refresh owner panel:', error);
+                document.getElementById('deviceList').innerHTML = '<p>Error loading devices. Check console for details.</p>';
             }
         }
 
         async function refreshViewerPanel() {
-            if (!apiConnected || !currentAccount) return;
+            if (!apiConnected) {
+                document.getElementById('myAccessPasses').innerHTML = '<p>API not connected. Please start the backend server.</p>';
+                return;
+            }
+            
+            if (!currentAccount) {
+                document.getElementById('myAccessPasses').innerHTML = '<p>Please connect your wallet first.</p>';
+                return;
+            }
             
             try {
-                // Fetch access passes for current viewer
-                const passesResponse = await fetch(`${API_BASE_URL}/access-passes/viewer/${currentAccount}`);
-                const passesData = await passesResponse.json();
+                // Fetch ALL access passes and filter for current viewer
+                const allPassesResponse = await fetch(`${API_BASE_URL}/access-passes`);
+                const allPassesData = await allPassesResponse.json();
                 
-                if (passesData.success) {
-                    const passes = passesData.accessPasses;
+                if (allPassesData.success) {
+                    const allPasses = allPassesData.accessPasses || [];
+                    const myPasses = allPasses.filter(p => 
+                        p.viewer.toLowerCase() === currentAccount.toLowerCase()
+                    );
                     
-                    // Fetch device details for each pass
-                    const passListHtml = await Promise.all(passes.map(async p => {
+                    console.log('Viewer account:', currentAccount);
+                    console.log('All passes:', allPasses);
+                    console.log('My passes:', myPasses);
+                    
+                    // Fetch all devices to get device details
+                    const devicesResponse = await fetch(`${API_BASE_URL}/devices`);
+                    const devicesData = await devicesResponse.json();
+                    const devices = devicesData.success ? devicesData.devices : [];
+                    
+                    const passListHtml = myPasses.length > 0 ? myPasses.map(p => {
                         const isExpired = p.expiresAt < Date.now();
-                        
-                        // Fetch device details
-                        let deviceInfo = 'Unknown Device';
-                        try {
-                            const deviceResponse = await fetch(`${API_BASE_URL}/devices/did/${p.deviceDid}`);
-                            const deviceData = await deviceResponse.json();
-                            if (deviceData.success) {
-                                deviceInfo = `${deviceData.device.make} ${deviceData.device.model}`;
-                            }
-                        } catch (e) {
-                            console.error('Failed to fetch device details:', e);
-                        }
+                        const device = devices.find(d => d.id === p.deviceId);
                         
                         return `
                             <div class="access-card">
                                 <h3>Pass ${p.passId}</h3>
                                 <div class="access-info">
-                                    <p><strong>Device:</strong> ${deviceInfo}</p>
+                                    <p><strong>Device:</strong> ${device ? `${device.make} ${device.model}` : 'Unknown'}</p>
                                     <p><strong>DID:</strong> ${p.deviceDid}</p>
                                     <p><strong>Status:</strong> 
                                         <span class="status-badge ${isExpired ? 'status-expired' : 'status-active'}">
@@ -886,16 +961,17 @@
                                         </span>
                                     </p>
                                     <p><strong>Expires:</strong> ${new Date(p.expiresAt).toLocaleString()}</p>
+                                    <p><strong>Granted by:</strong> ${p.grantedBy}</p>
                                 </div>
                             </div>
                         `;
-                    }));
+                    }).join('') : `<p>No access passes available for address ${currentAccount}.</p>`;
                     
-                    document.getElementById('myAccessPasses').innerHTML = 
-                        passListHtml.length > 0 ? passListHtml.join('') : '<p>No access passes available.</p>';
+                    document.getElementById('myAccessPasses').innerHTML = passListHtml;
                 }
             } catch (error) {
                 console.error('Failed to refresh viewer panel:', error);
+                document.getElementById('myAccessPasses').innerHTML = '<p>Error loading access passes. Check console for details.</p>';
             }
         }
 
