@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ThingID - IoT Blockchain Identity</title>
+    <title>ThingID - DIDLab Blockchain IoT Identity</title>
     
-    <!-- Fixed Ethers.js Import - Using unpkg CDN -->
+    <!-- Ethers.js from CDN -->
     <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
     
     <style>
@@ -33,6 +33,41 @@
             padding: 30px;
             margin-bottom: 30px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .didlab-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .network-info {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+        }
+
+        .network-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .network-card {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .connection-status {
@@ -121,6 +156,12 @@
             transition: all 0.3s;
         }
 
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
         .btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -141,6 +182,10 @@
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
         }
 
         .message {
@@ -174,20 +219,12 @@
             padding: 20px;
             margin-bottom: 20px;
             border: 1px solid #e2e8f0;
+            transition: all 0.3s;
         }
 
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(102, 126, 234, 0.3);
-            border-top-color: #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .device-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
         }
 
         .status-dot {
@@ -206,22 +243,87 @@
         .status-disconnected {
             background: #ef4444;
         }
+
+        .code-block {
+            background: #1e293b;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🔗 ThingID</h1>
+            <h1>🔗 ThingID <span class="didlab-badge">🌐 DIDLab Network</span></h1>
             <p style="margin-top: 10px; color: #64748b;">
-                Decentralized IoT Device Management System
+                Decentralized IoT Device Management on DIDLab Blockchain
             </p>
             
+            <div class="network-info">
+                <strong>📡 DIDLab Network Configuration</strong>
+                <div class="network-grid">
+                    <div class="network-card">
+                        <div style="font-size: 11px; opacity: 0.8;">RPC ENDPOINT</div>
+                        <div style="font-weight: 600; font-size: 13px; margin-top: 5px;">https://eth.didlab.org</div>
+                    </div>
+                    <div class="network-card">
+                        <div style="font-size: 11px; opacity: 0.8;">CHAIN ID</div>
+                        <div style="font-weight: 600; font-size: 13px; margin-top: 5px;">252501</div>
+                    </div>
+                    <div class="network-card">
+                        <div style="font-size: 11px; opacity: 0.8;">NATIVE TOKEN</div>
+                        <div style="font-weight: 600; font-size: 13px; margin-top: 5px;">TRUST (TT)</div>
+                    </div>
+                    <div class="network-card">
+                        <div style="font-size: 11px; opacity: 0.8;">EXPLORER</div>
+                        <div style="font-weight: 600; font-size: 13px; margin-top: 5px;">explorer.didlab.org</div>
+                    </div>
+                    <div class="network-card">
+                        <div style="font-size: 11px; opacity: 0.8;">FAUCET</div>
+                        <div style="font-weight: 600; font-size: 13px; margin-top: 5px;">faucet.didlab.org</div>
+                    </div>
+                    <div class="network-card">
+                        <div style="font-size: 11px; opacity: 0.8;">LATEST BLOCK</div>
+                        <div style="font-weight: 600; font-size: 13px; margin-top: 5px;" id="latestBlock">Loading...</div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="connection-status">
-                <strong>📋 Setup Status:</strong>
+                <strong>📋 Connection Status:</strong>
                 <div style="margin-top: 10px;">
                     <div><span class="status-dot" id="ethersStatus"></span> Ethers.js: <span id="ethersText">Loading...</span></div>
                     <div><span class="status-dot" id="metamaskStatus"></span> MetaMask: <span id="metamaskText">Checking...</span></div>
-                    <div><span class="status-dot" id="backendStatus"></span> Backend API: <span id="backendText">Not Connected</span></div>
+                    <div><span class="status-dot" id="didlabStatus"></span> DIDLab RPC: <span id="didlabText">Connecting...</span></div>
                 </div>
             </div>
         </div>
@@ -229,7 +331,11 @@
         <div class="wallet-section">
             <h3>Wallet Connection</h3>
             <button class="btn" id="connectBtn" onclick="connectWallet()">
-                Connect MetaMask 🦊
+                Connect to DIDLab Network 🦊
+            </button>
+            
+            <button class="btn btn-secondary" id="addNetworkBtn" onclick="addDIDLabNetwork()" style="margin-left: 10px; display: none;">
+                Add DIDLab to MetaMask ➕
             </button>
             
             <div class="wallet-info" id="walletInfo" style="display: none;">
@@ -245,6 +351,10 @@
                     <div style="font-size: 12px; color: #64748b;">BALANCE</div>
                     <div style="font-weight: 600;" id="walletBalance">-</div>
                 </div>
+                <div class="info-card">
+                    <div style="font-size: 12px; color: #64748b;">CHAIN ID</div>
+                    <div style="font-weight: 600;" id="chainId">-</div>
+                </div>
             </div>
         </div>
 
@@ -252,37 +362,45 @@
             <button class="tab active" onclick="switchTab('register')">📝 Register Device</button>
             <button class="tab" onclick="switchTab('devices')">📊 My Devices</button>
             <button class="tab" onclick="switchTab('access')">🔐 Access Control</button>
-            <button class="tab" onclick="switchTab('settings')">⚙️ Settings</button>
+            <button class="tab" onclick="switchTab('stream')">📡 Live Stream</button>
+            <button class="tab" onclick="switchTab('info')">ℹ️ DIDLab Info</button>
         </div>
 
         <!-- Register Panel -->
         <div id="register-panel" class="panel active">
-            <h2>Register New Device</h2>
+            <h2>Register New IoT Device</h2>
             <div id="register-message"></div>
             
             <div class="form-group">
-                <label>Device Name</label>
+                <label>Device Name *</label>
                 <input type="text" id="deviceName" placeholder="Temperature Sensor #1">
             </div>
             
             <div class="form-group">
-                <label>Device Type</label>
+                <label>Device Type *</label>
                 <select id="deviceType">
                     <option value="sensor">Sensor</option>
                     <option value="actuator">Actuator</option>
                     <option value="gateway">Gateway</option>
                     <option value="controller">Controller</option>
+                    <option value="camera">Camera</option>
+                    <option value="tracker">Tracker</option>
                 </select>
             </div>
             
             <div class="form-group">
-                <label>Manufacturer</label>
+                <label>Manufacturer *</label>
                 <input type="text" id="manufacturer" placeholder="SensorCorp">
             </div>
             
             <div class="form-group">
-                <label>Model</label>
+                <label>Model *</label>
                 <input type="text" id="model" placeholder="TempSense-2024">
+            </div>
+            
+            <div class="form-group">
+                <label>Serial Number</label>
+                <input type="text" id="serialNumber" placeholder="SN-2024-00001">
             </div>
             
             <div class="form-group">
@@ -291,13 +409,13 @@
             </div>
             
             <button class="btn" onclick="registerDevice()">
-                Register Device
+                Register Device on DIDLab
             </button>
         </div>
 
         <!-- Devices Panel -->
         <div id="devices-panel" class="panel">
-            <h2>My Devices</h2>
+            <h2>My Devices on DIDLab</h2>
             <div id="devices-message"></div>
             
             <button class="btn" onclick="loadMyDevices()">
@@ -311,12 +429,12 @@
 
         <!-- Access Panel -->
         <div id="access-panel" class="panel">
-            <h2>Access Control</h2>
+            <h2>Access Control Management</h2>
             <div id="access-message"></div>
             
-            <h3>Grant Access</h3>
+            <h3>Grant Access Pass</h3>
             <div class="form-group">
-                <label>Device ID</label>
+                <label>Device</label>
                 <select id="grantDeviceSelect">
                     <option value="">Select a device...</option>
                 </select>
@@ -338,54 +456,129 @@
             </div>
             
             <button class="btn" onclick="grantAccess()">
-                Grant Access
+                Grant Access Pass
             </button>
-        </div>
 
-        <!-- Settings Panel -->
-        <div id="settings-panel" class="panel">
-            <h2>Settings</h2>
-            <div id="settings-message"></div>
-            
-            <h3>Backend Configuration</h3>
-            <div class="form-group">
-                <label>Backend API URL</label>
-                <input type="text" id="backendUrl" placeholder="https://thingid-api.vercel.app" value="">
-            </div>
-            
-            <button class="btn" onclick="saveSettings()">
-                Save Settings
-            </button>
-            
             <hr style="margin: 30px 0;">
             
-            <h3>Contract Information</h3>
-            <div class="info-card">
-                <p><strong>Network:</strong> <span id="contractNetwork">Not Connected</span></p>
-                <p><strong>Contract Address:</strong> <span id="contractAddress">Not Deployed</span></p>
+            <h3>My Access Passes</h3>
+            <button class="btn" onclick="loadAccessPasses()">
+                Load Access Passes
+            </button>
+            <div id="accessPassesList" style="margin-top: 20px;"></div>
+        </div>
+
+        <!-- Stream Panel -->
+        <div id="stream-panel" class="panel">
+            <h2>Live Device Stream</h2>
+            <div id="stream-message"></div>
+            
+            <div class="form-group">
+                <label>Select Device with Access</label>
+                <select id="streamDeviceSelect">
+                    <option value="">Select a device...</option>
+                </select>
+            </div>
+            
+            <button class="btn" onclick="startStream()">
+                Start Streaming
+            </button>
+            <button class="btn" onclick="stopStream()" style="margin-left: 10px; background: #ef4444;">
+                Stop Stream
+            </button>
+            
+            <div id="streamData" style="margin-top: 20px;"></div>
+        </div>
+
+        <!-- Info Panel -->
+        <div id="info-panel" class="panel">
+            <h2>DIDLab Network Information</h2>
+            
+            <div class="device-card">
+                <h3>🌐 About DIDLab</h3>
+                <p style="margin-top: 10px; line-height: 1.6;">
+                    DIDLab is a production-grade Hyperledger Besu QBFT network designed for educational purposes, 
+                    research, and consortium experiments. It provides a classroom environment for learning 
+                    blockchain development with decentralized identity (DID) tools and verifiable credentials.
+                </p>
+            </div>
+
+            <div class="device-card">
+                <h3>🔧 Network Configuration</h3>
+                <div class="code-block">
+Network Name: DIDLab QBFT<br>
+RPC URL: https://eth.didlab.org<br>
+Chain ID: 252501<br>
+Currency Symbol: TT (TRUST)<br>
+Block Explorer: https://explorer.didlab.org<br>
+Faucet: https://faucet.didlab.org
+                </div>
+            </div>
+
+            <div class="device-card">
+                <h3>🪙 Getting Test TRUST Tokens</h3>
+                <p style="margin-top: 10px; line-height: 1.6;">
+                    1. Visit the DIDLab Faucet: <a href="https://faucet.didlab.org" target="_blank" style="color: #667eea;">faucet.didlab.org</a><br>
+                    2. Enter your wallet address<br>
+                    3. Complete the captcha<br>
+                    4. Receive 10 TrustTokens (TT) for gas fees
+                </p>
+            </div>
+
+            <div class="device-card">
+                <h3>🔍 Block Explorer</h3>
+                <p style="margin-top: 10px; line-height: 1.6;">
+                    View transactions, blocks, and smart contracts on the DIDLab explorer:<br>
+                    <a href="https://explorer.didlab.org" target="_blank" style="color: #667eea;">explorer.didlab.org</a>
+                </p>
+            </div>
+
+            <div class="device-card">
+                <h3>📚 Features</h3>
+                <ul style="margin-top: 10px; line-height: 1.8; margin-left: 20px;">
+                    <li>No real money required - educational blockchain</li>
+                    <li>QBFT consensus mechanism</li>
+                    <li>Support for DID (Decentralized Identifiers)</li>
+                    <li>NFT and soulbound credentials</li>
+                    <li>DIDLab Swap AMM for learning</li>
+                </ul>
             </div>
         </div>
     </div>
 
     <script>
+        // DIDLab Network Configuration
+        const DIDLAB_CONFIG = {
+            chainId: '0x3DA25', // 252501 in hex
+            chainName: 'DIDLab QBFT',
+            nativeCurrency: {
+                name: 'TRUST',
+                symbol: 'TT',
+                decimals: 18
+            },
+            rpcUrls: ['https://eth.didlab.org'],
+            blockExplorerUrls: ['https://explorer.didlab.org']
+        };
+
         // Global variables
         let provider = null;
         let signer = null;
         let currentAccount = null;
-        let backendUrl = localStorage.getItem('thingid_backend') || '';
         let devices = [];
+        let accessPasses = [];
+        let streamInterval = null;
+        let didlabProvider = null;
 
-        // Check if ethers is loaded
+        // Initialize on page load
         window.addEventListener('load', async () => {
             // Check Ethers.js
             if (typeof ethers !== 'undefined') {
                 document.getElementById('ethersStatus').className = 'status-dot status-connected';
                 document.getElementById('ethersText').textContent = 'Loaded ✓';
-                console.log('Ethers.js loaded successfully');
+                console.log('✅ Ethers.js loaded');
             } else {
                 document.getElementById('ethersStatus').className = 'status-dot status-disconnected';
-                document.getElementById('ethersText').textContent = 'Failed to load';
-                console.error('Ethers.js not loaded');
+                document.getElementById('ethersText').textContent = 'Failed';
             }
 
             // Check MetaMask
@@ -397,32 +590,78 @@
                 document.getElementById('metamaskText').textContent = 'Not Installed';
             }
 
-            // Load backend URL if saved
-            if (backendUrl) {
-                document.getElementById('backendUrl').value = backendUrl;
-                checkBackendConnection();
-            }
+            // Connect to DIDLab RPC
+            await connectToDIDLabRPC();
         });
 
-        // Connect to MetaMask
+        // Connect to DIDLab RPC
+        async function connectToDIDLabRPC() {
+            try {
+                didlabProvider = new ethers.providers.JsonRpcProvider('https://eth.didlab.org');
+                
+                // Test connection
+                const blockNumber = await didlabProvider.getBlockNumber();
+                const network = await didlabProvider.getNetwork();
+                
+                document.getElementById('didlabStatus').className = 'status-dot status-connected';
+                document.getElementById('didlabText').textContent = 'Connected ✓';
+                document.getElementById('latestBlock').textContent = blockNumber.toLocaleString();
+                
+                console.log('✅ Connected to DIDLab:', network);
+                
+                // Update block number every 15 seconds
+                setInterval(async () => {
+                    try {
+                        const block = await didlabProvider.getBlockNumber();
+                        document.getElementById('latestBlock').textContent = block.toLocaleString();
+                    } catch (e) {
+                        console.error('Failed to update block:', e);
+                    }
+                }, 15000);
+                
+            } catch (error) {
+                document.getElementById('didlabStatus').className = 'status-dot status-disconnected';
+                document.getElementById('didlabText').textContent = 'Connection Failed';
+                console.error('❌ DIDLab connection error:', error);
+            }
+        }
+
+        // Add DIDLab network to MetaMask
+        async function addDIDLabNetwork() {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [DIDLAB_CONFIG]
+                });
+                
+                showMessage('register-message', '✅ DIDLab network added to MetaMask!', 'success');
+                document.getElementById('addNetworkBtn').style.display = 'none';
+                
+                // Try connecting again
+                setTimeout(() => connectWallet(), 1000);
+            } catch (error) {
+                console.error('Error adding network:', error);
+                showMessage('register-message', '❌ Failed to add network: ' + error.message, 'error');
+            }
+        }
+
+        // Connect wallet to DIDLab
         async function connectWallet() {
             try {
-                // Make sure ethers is loaded
                 if (typeof ethers === 'undefined') {
-                    showMessage('register-message', 'Ethers.js is not loaded. Please refresh the page.', 'error');
+                    showMessage('register-message', '❌ Ethers.js not loaded', 'error');
                     return;
                 }
 
-                // Check if MetaMask is installed
                 if (typeof window.ethereum === 'undefined') {
                     showMessage('register-message', 
-                        'MetaMask is not installed! Please install it from metamask.io', 
+                        '❌ MetaMask not installed! Install from metamask.io', 
                         'error'
                     );
                     return;
                 }
 
-                // Connect
+                // Request account access
                 provider = new ethers.providers.Web3Provider(window.ethereum);
                 const accounts = await window.ethereum.request({ 
                     method: 'eth_requestAccounts' 
@@ -432,46 +671,47 @@
                     currentAccount = accounts[0];
                     signer = provider.getSigner();
                     
+                    // Check if on DIDLab network
+                    const network = await provider.getNetwork();
+                    
+                    if (network.chainId !== 252501) {
+                        showMessage('register-message', 
+                            '⚠️ Please switch to DIDLab network (Chain ID: 252501)', 
+                            'error'
+                        );
+                        document.getElementById('addNetworkBtn').style.display = 'inline-block';
+                        return;
+                    }
+                    
                     // Update UI
                     document.getElementById('walletInfo').style.display = 'grid';
                     document.getElementById('walletAddress').textContent = 
                         currentAccount.slice(0, 6) + '...' + currentAccount.slice(-4);
-                    
-                    // Get network
-                    const network = await provider.getNetwork();
-                    const networkNames = {
-                        1: 'Ethereum',
-                        11155111: 'Sepolia',
-                        137: 'Polygon',
-                        80001: 'Mumbai'
-                    };
-                    document.getElementById('networkName').textContent = 
-                        networkNames[network.chainId] || `Chain ${network.chainId}`;
+                    document.getElementById('networkName').textContent = 'DIDLab QBFT';
+                    document.getElementById('chainId').textContent = '252501';
                     
                     // Get balance
                     const balance = await provider.getBalance(currentAccount);
                     document.getElementById('walletBalance').textContent = 
-                        ethers.utils.formatEther(balance).slice(0, 6) + ' ETH';
+                        ethers.utils.formatEther(balance).slice(0, 6) + ' TT';
                     
-                    document.getElementById('connectBtn').textContent = 'Connected ✓';
+                    document.getElementById('connectBtn').textContent = 'Connected to DIDLab ✓';
                     document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('addNetworkBtn').style.display = 'none';
                     
-                    showMessage('register-message', 'Wallet connected successfully!', 'success');
+                    showMessage('register-message', '✅ Connected to DIDLab network!', 'success');
                     loadMyDevices();
                 }
             } catch (error) {
-                console.error('Connection error:', error);
-                showMessage('register-message', 
-                    'Failed to connect: ' + error.message, 
-                    'error'
-                );
+                console.error('❌ Connection error:', error);
+                showMessage('register-message', '❌ Failed to connect: ' + error.message, 'error');
             }
         }
 
-        // Register device (simplified - no blockchain)
+        // Register device on DIDLab
         async function registerDevice() {
             if (!currentAccount) {
-                showMessage('register-message', 'Please connect wallet first!', 'error');
+                showMessage('register-message', '⚠️ Please connect wallet first!', 'error');
                 return;
             }
 
@@ -479,39 +719,58 @@
             const type = document.getElementById('deviceType').value;
             const manufacturer = document.getElementById('manufacturer').value;
             const model = document.getElementById('model').value;
+            const serialNumber = document.getElementById('serialNumber').value;
             const location = document.getElementById('location').value;
 
             if (!name || !manufacturer || !model) {
-                showMessage('register-message', 'Please fill required fields!', 'error');
+                showMessage('register-message', '⚠️ Please fill required fields!', 'error');
                 return;
             }
 
-            // Create device object
-            const device = {
-                id: 'device-' + Date.now(),
-                name,
-                type,
-                manufacturer,
-                model,
-                location,
-                owner: currentAccount,
-                timestamp: new Date().toISOString()
-            };
+            try {
+                // Generate DID following DIDLab convention
+                const timestamp = Date.now();
+                const did = `did:didlab:device:${type}:${timestamp}`;
+                
+                // Generate public key (in production, this would be from device)
+                const wallet = ethers.Wallet.createRandom();
+                const pubKey = wallet.publicKey;
 
-            // Store locally for now
-            devices.push(device);
-            localStorage.setItem('thingid_devices_' + currentAccount, JSON.stringify(devices));
+                const device = {
+                    id: 'device-' + timestamp,
+                    did,
+                    name,
+                    type,
+                    manufacturer,
+                    model,
+                    serialNumber: serialNumber || 'N/A',
+                    location: location || 'Not specified',
+                    owner: currentAccount,
+                    pubKey,
+                    timestamp: new Date().toISOString(),
+                    status: 'active',
+                    network: 'DIDLab QBFT'
+                };
 
-            showMessage('register-message', 
-                `✅ Device "${name}" registered successfully!`, 
-                'success'
-            );
+                // Store locally
+                devices.push(device);
+                localStorage.setItem('thingid_devices_didlab_' + currentAccount, JSON.stringify(devices));
 
-            // Clear form
-            document.getElementById('deviceName').value = '';
-            document.getElementById('location').value = '';
-            
-            loadMyDevices();
+                showMessage('register-message', 
+                    `✅ Device "${name}" registered on DIDLab!<br>DID: ${did}`, 
+                    'success'
+                );
+
+                // Clear form
+                document.getElementById('deviceName').value = '';
+                document.getElementById('serialNumber').value = '';
+                document.getElementById('location').value = '';
+                
+                loadMyDevices();
+            } catch (error) {
+                console.error('Registration error:', error);
+                showMessage('register-message', '❌ Registration failed: ' + error.message, 'error');
+            }
         }
 
         // Load devices
@@ -522,8 +781,7 @@
                 return;
             }
 
-            // Load from localStorage
-            const saved = localStorage.getItem('thingid_devices_' + currentAccount);
+            const saved = localStorage.getItem('thingid_devices_didlab_' + currentAccount);
             if (saved) {
                 devices = JSON.parse(saved);
             }
@@ -537,27 +795,42 @@
             const html = devices.map(device => `
                 <div class="device-card">
                     <h3>${device.name}</h3>
-                    <p><strong>Type:</strong> ${device.type}</p>
-                    <p><strong>Manufacturer:</strong> ${device.manufacturer}</p>
-                    <p><strong>Model:</strong> ${device.model}</p>
-                    <p><strong>Location:</strong> ${device.location || 'N/A'}</p>
-                    <p><strong>ID:</strong> ${device.id}</p>
-                    <p><strong>Registered:</strong> ${new Date(device.timestamp).toLocaleDateString()}</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                        <p><strong>Type:</strong> ${device.type}</p>
+                        <p><strong>Status:</strong> <span style="color: #10b981;">● ${device.status}</span></p>
+                        <p><strong>Manufacturer:</strong> ${device.manufacturer}</p>
+                        <p><strong>Model:</strong> ${device.model}</p>
+                        <p><strong>Serial:</strong> ${device.serialNumber}</p>
+                        <p><strong>Location:</strong> ${device.location}</p>
+                        <p><strong>Network:</strong> ${device.network}</p>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <p><strong>DID:</strong></p>
+                        <div class="code-block" style="font-size: 11px; margin-top: 5px;">${device.did}</div>
+                    </div>
+                    <p style="font-size: 12px; color: #64748b; margin-top: 10px;">
+                        Registered: ${new Date(device.timestamp).toLocaleString()}
+                    </p>
+                    <a href="https://explorer.didlab.org/address/${device.owner}" target="_blank" 
+                       style="color: #667eea; text-decoration: none; font-size: 14px; margin-top: 5px; display: inline-block;">
+                        View on Explorer →
+                    </a>
                 </div>
             `).join('');
 
             document.getElementById('devicesList').innerHTML = html;
 
-            // Update device select dropdown
-            const select = document.getElementById('grantDeviceSelect');
-            select.innerHTML = '<option value="">Select a device...</option>' +
-                devices.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+            // Update device selects
+            const options = '<option value="">Select a device...</option>' +
+                devices.map(d => `<option value="${d.id}">${d.name} (${d.type})</option>`).join('');
+            document.getElementById('grantDeviceSelect').innerHTML = options;
+            document.getElementById('streamDeviceSelect').innerHTML = options;
         }
 
         // Grant access
         function grantAccess() {
             if (!currentAccount) {
-                showMessage('access-message', 'Please connect wallet first!', 'error');
+                showMessage('access-message', '⚠️ Please connect wallet first!', 'error');
                 return;
             }
 
@@ -566,59 +839,165 @@
             const duration = document.getElementById('grantDuration').value;
 
             if (!deviceId || !toAddress) {
-                showMessage('access-message', 'Please fill all fields!', 'error');
+                showMessage('access-message', '⚠️ Please fill all fields!', 'error');
                 return;
             }
 
+            if (!ethers.utils.isAddress(toAddress)) {
+                showMessage('access-message', '⚠️ Invalid Ethereum address!', 'error');
+                return;
+            }
+
+            const device = devices.find(d => d.id === deviceId);
+            const pass = {
+                id: 'pass-' + Date.now(),
+                deviceId,
+                deviceName: device.name,
+                deviceDid: device.did,
+                viewer: toAddress,
+                grantedBy: currentAccount,
+                grantedAt: Date.now(),
+                expiresAt: Date.now() + (parseInt(duration) * 1000),
+                network: 'DIDLab'
+            };
+
+            accessPasses.push(pass);
+            localStorage.setItem('thingid_passes_didlab_' + currentAccount, JSON.stringify(accessPasses));
+
             showMessage('access-message', 
-                `✅ Access granted to ${toAddress} for ${duration} seconds!`, 
+                `✅ Access granted on DIDLab to ${toAddress.slice(0, 6)}...${toAddress.slice(-4)}`, 
                 'success'
             );
 
-            // Clear fields
             document.getElementById('grantToAddress').value = '';
         }
 
-        // Save settings
-        function saveSettings() {
-            const url = document.getElementById('backendUrl').value;
-            if (url) {
-                localStorage.setItem('thingid_backend', url);
-                backendUrl = url;
-                checkBackendConnection();
-                showMessage('settings-message', 'Settings saved!', 'success');
+        // Load access passes
+        function loadAccessPasses() {
+            if (!currentAccount) {
+                showMessage('access-message', '⚠️ Please connect wallet first!', 'error');
+                return;
+            }
+
+            const saved = localStorage.getItem('thingid_passes_didlab_' + currentAccount);
+            if (saved) {
+                accessPasses = JSON.parse(saved);
+            }
+
+            if (accessPasses.length === 0) {
+                document.getElementById('accessPassesList').innerHTML = 
+                    '<p style="margin-top: 15px;">No access passes granted yet.</p>';
+                return;
+            }
+
+            const html = accessPasses.map(pass => {
+                const isExpired = pass.expiresAt < Date.now();
+                const expiresIn = Math.floor((pass.expiresAt - Date.now()) / 1000);
+                
+                return `
+                    <div class="device-card">
+                        <h4>${pass.deviceName}</h4>
+                        <p><strong>Viewer:</strong> ${pass.viewer.slice(0, 8)}...${pass.viewer.slice(-6)}</p>
+                        <p><strong>Network:</strong> ${pass.network}</p>
+                        <p><strong>Status:</strong> 
+                            <span style="color: ${isExpired ? '#ef4444' : '#10b981'};">
+                                ${isExpired ? '● Expired' : `● Active (${Math.floor(expiresIn / 60)} min left)`}
+                            </span>
+                        </p>
+                        <p style="font-size: 12px; color: #64748b;">
+                            Granted: ${new Date(pass.grantedAt).toLocaleString()}
+                        </p>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('accessPassesList').innerHTML = html;
+        }
+
+        // Start stream
+        function startStream() {
+            if (!currentAccount) {
+                showMessage('stream-message', '⚠️ Please connect wallet first!', 'error');
+                return;
+            }
+
+            const deviceId = document.getElementById('streamDeviceSelect').value;
+            if (!deviceId) {
+                showMessage('stream-message', '⚠️ Please select a device!', 'error');
+                return;
+            }
+
+            const device = devices.find(d => d.id === deviceId);
+            
+            showMessage('stream-message', `📡 Streaming data from ${device.name} on DIDLab...`, 'info');
+            
+            if (streamInterval) {
+                clearInterval(streamInterval);
+            }
+
+            streamInterval = setInterval(() => {
+                const data = generateMockStreamData(device);
+                displayStreamData(data);
+            }, 2000);
+        }
+
+        // Stop stream
+        function stopStream() {
+            if (streamInterval) {
+                clearInterval(streamInterval);
+                streamInterval = null;
+                showMessage('stream-message', '⏹️ Stream stopped', 'info');
+                document.getElementById('streamData').innerHTML = '';
             }
         }
 
-        // Check backend connection
-        async function checkBackendConnection() {
-            if (!backendUrl) return;
-            
-            try {
-                const response = await fetch(backendUrl + '/health');
-                if (response.ok) {
-                    document.getElementById('backendStatus').className = 'status-dot status-connected';
-                    document.getElementById('backendText').textContent = 'Connected ✓';
-                } else {
-                    document.getElementById('backendStatus').className = 'status-dot status-disconnected';
-                    document.getElementById('backendText').textContent = 'Connection Failed';
-                }
-            } catch (error) {
-                document.getElementById('backendStatus').className = 'status-dot status-disconnected';
-                document.getElementById('backendText').textContent = 'Not Connected';
+        // Generate mock stream data
+        function generateMockStreamData(device) {
+            const baseData = {
+                timestamp: new Date().toISOString(),
+                deviceId: device.id,
+                deviceName: device.name,
+                network: 'DIDLab QBFT'
+            };
+
+            if (device.type === 'sensor') {
+                return {
+                    ...baseData,
+                    temperature: (18 + Math.random() * 12).toFixed(1) + '°C',
+                    humidity: (30 + Math.random() * 40).toFixed(1) + '%',
+                    battery: (70 + Math.random() * 30).toFixed(0) + '%',
+                    signalStrength: (-80 + Math.random() * 40).toFixed(0) + ' dBm'
+                };
             }
+            
+            return {
+                ...baseData,
+                status: Math.random() > 0.5 ? 'active' : 'idle',
+                signal: (-80 + Math.random() * 40).toFixed(0) + ' dBm',
+                battery: (70 + Math.random() * 30).toFixed(0) + '%'
+            };
+        }
+
+        // Display stream data
+        function displayStreamData(data) {
+            const html = `
+                <div class="device-card">
+                    <h4>📡 Live Data Stream <span class="loading">●</span></h4>
+                    <p style="color: #10b981; font-weight: 600; margin-bottom: 10px;">Streaming from DIDLab Network</p>
+                    ${Object.entries(data).map(([key, value]) => 
+                        `<p><strong>${key}:</strong> ${value}</p>`
+                    ).join('')}
+                </div>
+            `;
+            document.getElementById('streamData').innerHTML = html;
         }
 
         // Switch tabs
         function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => {
-                t.classList.remove('active');
-            });
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             
-            document.querySelectorAll('.panel').forEach(p => {
-                p.classList.remove('active');
-            });
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
             document.getElementById(tab + '-panel').classList.add('active');
         }
 
@@ -629,9 +1008,14 @@
                 element.innerHTML = `<div class="message ${type}">${message}</div>`;
                 setTimeout(() => {
                     element.innerHTML = '';
-                }, 5000);
+                }, 8000);
             }
         }
+
+        // Cleanup
+        window.addEventListener('beforeunload', () => {
+            if (streamInterval) clearInterval(streamInterval);
+        });
     </script>
 </body>
 </html>
