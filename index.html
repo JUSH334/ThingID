@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThingID - IoT Blockchain Identity</title>
+    
+    <!-- Fixed Ethers.js Import - Using unpkg CDN -->
+    <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .connection-status {
+            background: #f0f9ff;
+            border-left: 4px solid #0ea5e9;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .wallet-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+        }
+
+        .wallet-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .info-card {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .tab.active {
+            background: white;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.25);
+            color: #667eea;
+        }
+
+        .panel {
+            display: none;
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.35);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            animation: slideIn 0.3s ease;
+        }
+
+        .message.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+
+        .message.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .message.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+
+        .device-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-connected {
+            background: #10b981;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+
+        .status-disconnected {
+            background: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔗 ThingID</h1>
+            <p style="margin-top: 10px; color: #64748b;">
+                Decentralized IoT Device Management System
+            </p>
+            
+            <div class="connection-status">
+                <strong>📋 Setup Status:</strong>
+                <div style="margin-top: 10px;">
+                    <div><span class="status-dot" id="ethersStatus"></span> Ethers.js: <span id="ethersText">Loading...</span></div>
+                    <div><span class="status-dot" id="metamaskStatus"></span> MetaMask: <span id="metamaskText">Checking...</span></div>
+                    <div><span class="status-dot" id="backendStatus"></span> Backend API: <span id="backendText">Not Connected</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="wallet-section">
+            <h3>Wallet Connection</h3>
+            <button class="btn" id="connectBtn" onclick="connectWallet()">
+                Connect MetaMask 🦊
+            </button>
+            
+            <div class="wallet-info" id="walletInfo" style="display: none;">
+                <div class="info-card">
+                    <div style="font-size: 12px; color: #64748b;">ADDRESS</div>
+                    <div style="font-weight: 600;" id="walletAddress">-</div>
+                </div>
+                <div class="info-card">
+                    <div style="font-size: 12px; color: #64748b;">NETWORK</div>
+                    <div style="font-weight: 600;" id="networkName">-</div>
+                </div>
+                <div class="info-card">
+                    <div style="font-size: 12px; color: #64748b;">BALANCE</div>
+                    <div style="font-weight: 600;" id="walletBalance">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('register')">📝 Register Device</button>
+            <button class="tab" onclick="switchTab('devices')">📊 My Devices</button>
+            <button class="tab" onclick="switchTab('access')">🔐 Access Control</button>
+            <button class="tab" onclick="switchTab('settings')">⚙️ Settings</button>
+        </div>
+
+        <!-- Register Panel -->
+        <div id="register-panel" class="panel active">
+            <h2>Register New Device</h2>
+            <div id="register-message"></div>
+            
+            <div class="form-group">
+                <label>Device Name</label>
+                <input type="text" id="deviceName" placeholder="Temperature Sensor #1">
+            </div>
+            
+            <div class="form-group">
+                <label>Device Type</label>
+                <select id="deviceType">
+                    <option value="sensor">Sensor</option>
+                    <option value="actuator">Actuator</option>
+                    <option value="gateway">Gateway</option>
+                    <option value="controller">Controller</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Manufacturer</label>
+                <input type="text" id="manufacturer" placeholder="SensorCorp">
+            </div>
+            
+            <div class="form-group">
+                <label>Model</label>
+                <input type="text" id="model" placeholder="TempSense-2024">
+            </div>
+            
+            <div class="form-group">
+                <label>Location</label>
+                <input type="text" id="location" placeholder="Building A - Floor 3">
+            </div>
+            
+            <button class="btn" onclick="registerDevice()">
+                Register Device
+            </button>
+        </div>
+
+        <!-- Devices Panel -->
+        <div id="devices-panel" class="panel">
+            <h2>My Devices</h2>
+            <div id="devices-message"></div>
+            
+            <button class="btn" onclick="loadMyDevices()">
+                Refresh Devices
+            </button>
+            
+            <div id="devicesList" style="margin-top: 20px;">
+                <p>No devices registered yet.</p>
+            </div>
+        </div>
+
+        <!-- Access Panel -->
+        <div id="access-panel" class="panel">
+            <h2>Access Control</h2>
+            <div id="access-message"></div>
+            
+            <h3>Grant Access</h3>
+            <div class="form-group">
+                <label>Device ID</label>
+                <select id="grantDeviceSelect">
+                    <option value="">Select a device...</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Grant To (Address)</label>
+                <input type="text" id="grantToAddress" placeholder="0x...">
+            </div>
+            
+            <div class="form-group">
+                <label>Duration</label>
+                <select id="grantDuration">
+                    <option value="3600">1 Hour</option>
+                    <option value="86400">1 Day</option>
+                    <option value="604800">1 Week</option>
+                    <option value="2592000">30 Days</option>
+                </select>
+            </div>
+            
+            <button class="btn" onclick="grantAccess()">
+                Grant Access
+            </button>
+        </div>
+
+        <!-- Settings Panel -->
+        <div id="settings-panel" class="panel">
+            <h2>Settings</h2>
+            <div id="settings-message"></div>
+            
+            <h3>Backend Configuration</h3>
+            <div class="form-group">
+                <label>Backend API URL</label>
+                <input type="text" id="backendUrl" placeholder="https://thingid-api.vercel.app" value="">
+            </div>
+            
+            <button class="btn" onclick="saveSettings()">
+                Save Settings
+            </button>
+            
+            <hr style="margin: 30px 0;">
+            
+            <h3>Contract Information</h3>
+            <div class="info-card">
+                <p><strong>Network:</strong> <span id="contractNetwork">Not Connected</span></p>
+                <p><strong>Contract Address:</strong> <span id="contractAddress">Not Deployed</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let provider = null;
+        let signer = null;
+        let currentAccount = null;
+        let backendUrl = localStorage.getItem('thingid_backend') || '';
+        let devices = [];
+
+        // Check if ethers is loaded
+        window.addEventListener('load', async () => {
+            // Check Ethers.js
+            if (typeof ethers !== 'undefined') {
+                document.getElementById('ethersStatus').className = 'status-dot status-connected';
+                document.getElementById('ethersText').textContent = 'Loaded ✓';
+                console.log('Ethers.js loaded successfully');
+            } else {
+                document.getElementById('ethersStatus').className = 'status-dot status-disconnected';
+                document.getElementById('ethersText').textContent = 'Failed to load';
+                console.error('Ethers.js not loaded');
+            }
+
+            // Check MetaMask
+            if (typeof window.ethereum !== 'undefined') {
+                document.getElementById('metamaskStatus').className = 'status-dot status-connected';
+                document.getElementById('metamaskText').textContent = 'Installed ✓';
+            } else {
+                document.getElementById('metamaskStatus').className = 'status-dot status-disconnected';
+                document.getElementById('metamaskText').textContent = 'Not Installed';
+            }
+
+            // Load backend URL if saved
+            if (backendUrl) {
+                document.getElementById('backendUrl').value = backendUrl;
+                checkBackendConnection();
+            }
+        });
+
+        // Connect to MetaMask
+        async function connectWallet() {
+            try {
+                // Make sure ethers is loaded
+                if (typeof ethers === 'undefined') {
+                    showMessage('register-message', 'Ethers.js is not loaded. Please refresh the page.', 'error');
+                    return;
+                }
+
+                // Check if MetaMask is installed
+                if (typeof window.ethereum === 'undefined') {
+                    showMessage('register-message', 
+                        'MetaMask is not installed! Please install it from metamask.io', 
+                        'error'
+                    );
+                    return;
+                }
+
+                // Connect
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                const accounts = await window.ethereum.request({ 
+                    method: 'eth_requestAccounts' 
+                });
+
+                if (accounts.length > 0) {
+                    currentAccount = accounts[0];
+                    signer = provider.getSigner();
+                    
+                    // Update UI
+                    document.getElementById('walletInfo').style.display = 'grid';
+                    document.getElementById('walletAddress').textContent = 
+                        currentAccount.slice(0, 6) + '...' + currentAccount.slice(-4);
+                    
+                    // Get network
+                    const network = await provider.getNetwork();
+                    const networkNames = {
+                        1: 'Ethereum',
+                        11155111: 'Sepolia',
+                        137: 'Polygon',
+                        80001: 'Mumbai'
+                    };
+                    document.getElementById('networkName').textContent = 
+                        networkNames[network.chainId] || `Chain ${network.chainId}`;
+                    
+                    // Get balance
+                    const balance = await provider.getBalance(currentAccount);
+                    document.getElementById('walletBalance').textContent = 
+                        ethers.utils.formatEther(balance).slice(0, 6) + ' ETH';
+                    
+                    document.getElementById('connectBtn').textContent = 'Connected ✓';
+                    document.getElementById('connectBtn').disabled = true;
+                    
+                    showMessage('register-message', 'Wallet connected successfully!', 'success');
+                    loadMyDevices();
+                }
+            } catch (error) {
+                console.error('Connection error:', error);
+                showMessage('register-message', 
+                    'Failed to connect: ' + error.message, 
+                    'error'
+                );
+            }
+        }
+
+        // Register device (simplified - no blockchain)
+        async function registerDevice() {
+            if (!currentAccount) {
+                showMessage('register-message', 'Please connect wallet first!', 'error');
+                return;
+            }
+
+            const name = document.getElementById('deviceName').value;
+            const type = document.getElementById('deviceType').value;
+            const manufacturer = document.getElementById('manufacturer').value;
+            const model = document.getElementById('model').value;
+            const location = document.getElementById('location').value;
+
+            if (!name || !manufacturer || !model) {
+                showMessage('register-message', 'Please fill required fields!', 'error');
+                return;
+            }
+
+            // Create device object
+            const device = {
+                id: 'device-' + Date.now(),
+                name,
+                type,
+                manufacturer,
+                model,
+                location,
+                owner: currentAccount,
+                timestamp: new Date().toISOString()
+            };
+
+            // Store locally for now
+            devices.push(device);
+            localStorage.setItem('thingid_devices_' + currentAccount, JSON.stringify(devices));
+
+            showMessage('register-message', 
+                `✅ Device "${name}" registered successfully!`, 
+                'success'
+            );
+
+            // Clear form
+            document.getElementById('deviceName').value = '';
+            document.getElementById('location').value = '';
+            
+            loadMyDevices();
+        }
+
+        // Load devices
+        function loadMyDevices() {
+            if (!currentAccount) {
+                document.getElementById('devicesList').innerHTML = 
+                    '<p>Please connect wallet to view devices.</p>';
+                return;
+            }
+
+            // Load from localStorage
+            const saved = localStorage.getItem('thingid_devices_' + currentAccount);
+            if (saved) {
+                devices = JSON.parse(saved);
+            }
+
+            if (devices.length === 0) {
+                document.getElementById('devicesList').innerHTML = 
+                    '<p>No devices registered yet.</p>';
+                return;
+            }
+
+            const html = devices.map(device => `
+                <div class="device-card">
+                    <h3>${device.name}</h3>
+                    <p><strong>Type:</strong> ${device.type}</p>
+                    <p><strong>Manufacturer:</strong> ${device.manufacturer}</p>
+                    <p><strong>Model:</strong> ${device.model}</p>
+                    <p><strong>Location:</strong> ${device.location || 'N/A'}</p>
+                    <p><strong>ID:</strong> ${device.id}</p>
+                    <p><strong>Registered:</strong> ${new Date(device.timestamp).toLocaleDateString()}</p>
+                </div>
+            `).join('');
+
+            document.getElementById('devicesList').innerHTML = html;
+
+            // Update device select dropdown
+            const select = document.getElementById('grantDeviceSelect');
+            select.innerHTML = '<option value="">Select a device...</option>' +
+                devices.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+        }
+
+        // Grant access
+        function grantAccess() {
+            if (!currentAccount) {
+                showMessage('access-message', 'Please connect wallet first!', 'error');
+                return;
+            }
+
+            const deviceId = document.getElementById('grantDeviceSelect').value;
+            const toAddress = document.getElementById('grantToAddress').value;
+            const duration = document.getElementById('grantDuration').value;
+
+            if (!deviceId || !toAddress) {
+                showMessage('access-message', 'Please fill all fields!', 'error');
+                return;
+            }
+
+            showMessage('access-message', 
+                `✅ Access granted to ${toAddress} for ${duration} seconds!`, 
+                'success'
+            );
+
+            // Clear fields
+            document.getElementById('grantToAddress').value = '';
+        }
+
+        // Save settings
+        function saveSettings() {
+            const url = document.getElementById('backendUrl').value;
+            if (url) {
+                localStorage.setItem('thingid_backend', url);
+                backendUrl = url;
+                checkBackendConnection();
+                showMessage('settings-message', 'Settings saved!', 'success');
+            }
+        }
+
+        // Check backend connection
+        async function checkBackendConnection() {
+            if (!backendUrl) return;
+            
+            try {
+                const response = await fetch(backendUrl + '/health');
+                if (response.ok) {
+                    document.getElementById('backendStatus').className = 'status-dot status-connected';
+                    document.getElementById('backendText').textContent = 'Connected ✓';
+                } else {
+                    document.getElementById('backendStatus').className = 'status-dot status-disconnected';
+                    document.getElementById('backendText').textContent = 'Connection Failed';
+                }
+            } catch (error) {
+                document.getElementById('backendStatus').className = 'status-dot status-disconnected';
+                document.getElementById('backendText').textContent = 'Not Connected';
+            }
+        }
+
+        // Switch tabs
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => {
+                t.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            document.querySelectorAll('.panel').forEach(p => {
+                p.classList.remove('active');
+            });
+            document.getElementById(tab + '-panel').classList.add('active');
+        }
+
+        // Show message
+        function showMessage(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.innerHTML = `<div class="message ${type}">${message}</div>`;
+                setTimeout(() => {
+                    element.innerHTML = '';
+                }, 5000);
+            }
+        }
+    </script>
+</body>
+</html>

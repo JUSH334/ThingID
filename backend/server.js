@@ -1,14 +1,21 @@
-// server.js - ThingID Backend Server
+// server.js - Fixed for Railway Deployment
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
 
 const app = express();
+// IMPORTANT: Use Railway's PORT environment variable
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
+// Middleware - CRITICAL: Configure CORS properly for Railway
+app.use(cors({
+    origin: '*', // Allow all origins for now (restrict in production)
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -59,7 +66,7 @@ function initializeSampleData() {
         {
             id: 3,
             did: 'did:didlab:device-humidity-sensor-003',
-            pubKey: '0x04c9f3a7e2b5d8c1f6a9e3b7d2c5f8a4e1b9d6c3f7a2e5b8d1c4f9a6e3b7d2c5',
+            pubKey: '0x04c9f3a7e2b5d8c1f6a9e3b7d2c5f8a3e1b8e6f4c2d9a7b5e3f1c8d6a4b2e9f7',
             make: 'EnviroTech',
             model: 'HumidityTracker-X',
             owner: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8',
@@ -446,12 +453,16 @@ app.delete('/api/access-passes/:passId', (req, res) => {
     });
 });
 
-// Root API endpoint
+// Root API endpoint with dynamic URL
 app.get('/api', (req, res) => {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    
     res.json({
         success: true,
         message: 'ThingID API Server',
         version: '1.0.0',
+        baseUrl: baseUrl,
+        status: 'operational',
         endpoints: {
             devices: {
                 'GET /api/devices': 'Get all devices',
@@ -483,12 +494,15 @@ app.get('/api', (req, res) => {
     });
 });
 
-// Health check endpoint
+// Health check endpoint - IMPORTANT for Railway
 app.get('/api/health', (req, res) => {
     res.json({
         success: true,
         status: 'healthy',
         timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV || 'development',
+        port: PORT,
         stats: {
             devices: db.devices.length,
             accessPasses: db.accessPasses.length,
@@ -497,36 +511,16 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`\n🚀 ThingID Backend Server running on port ${PORT}`);
-    console.log(`📡 API available at http://localhost:${PORT}/api`);
-    console.log('\n📋 Available endpoints:');
-    console.log('  GET  /api                              - API information');
-    console.log('  GET  /api/health                       - Health check');
-    console.log('  GET  /api/devices                      - List all devices');
-    console.log('  GET  /api/devices/owner/:address       - Get devices by owner');
-    console.log('  GET  /api/devices/did/:did             - Get device by DID');
-    console.log('  POST /api/devices/issue                - Issue device certificate');
-    console.log('  GET  /api/access-passes                - List all passes');
-    console.log('  GET  /api/access-passes/device/:id     - Get passes for device');
-    console.log('  GET  /api/access-passes/viewer/:addr   - Get passes for viewer');
-    console.log('  POST /api/access-passes/grant          - Grant access pass');
-    console.log('  POST /api/stream/access                - Check access & stream');
-    console.log('  GET  /api/stream/:deviceDid            - Get stream data');
-    console.log('  DELETE /api/access-passes/:passId      - Revoke access pass');
-    console.log('\n✅ Server initialized with sample data:');
-    console.log(`   - ${db.devices.length} devices`);
-    console.log(`   - ${db.accessPasses.length} access passes`);
-    console.log('\n💡 Test the API: http://localhost:${PORT}/api');
-});
-
-// Add a root route that redirects to API
+// Root route - redirect to API
 app.get('/', (req, res) => {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
     res.json({
         message: 'Welcome to ThingID Backend',
-        api: 'http://localhost:' + PORT + '/api',
-        documentation: 'Visit /api for available endpoints'
+        api: baseUrl + '/api',
+        health: baseUrl + '/api/health',
+        documentation: 'Visit /api for available endpoints',
+        deployment: 'Railway',
+        status: 'operational'
     });
 });
 
@@ -545,8 +539,47 @@ app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({
         success: false,
-        error: 'Internal server error'
+        error: 'Internal server error',
+        message: err.message
     });
+});
+
+// Start server - Fixed console.log
+app.listen(PORT, () => {
+    console.log(`\n🚀 ThingID Backend Server running on port ${PORT}`);
+    console.log(`📡 API available at http://localhost:${PORT}/api`);
+    console.log(`🌐 Railway URL will be: https://[your-app].railway.app/api`);
+    console.log('\n📋 Available endpoints:');
+    console.log('  GET  /                                 - Server info');
+    console.log('  GET  /api                              - API information');
+    console.log('  GET  /api/health                       - Health check');
+    console.log('  GET  /api/devices                      - List all devices');
+    console.log('  GET  /api/devices/owner/:address       - Get devices by owner');
+    console.log('  GET  /api/devices/did/:did             - Get device by DID');
+    console.log('  POST /api/devices/issue                - Issue device certificate');
+    console.log('  GET  /api/access-passes                - List all passes');
+    console.log('  GET  /api/access-passes/device/:id     - Get passes for device');
+    console.log('  GET  /api/access-passes/viewer/:addr   - Get passes for viewer');
+    console.log('  POST /api/access-passes/grant          - Grant access pass');
+    console.log('  POST /api/stream/access                - Check access & stream');
+    console.log('  GET  /api/stream/:deviceDid            - Get stream data');
+    console.log('  DELETE /api/access-passes/:passId      - Revoke access pass');
+    console.log('\n✅ Server initialized with sample data:');
+    console.log(`   - ${db.devices.length} devices`);
+    console.log(`   - ${db.accessPasses.length} access passes`);
+    console.log(`\n💡 Test the API: http://localhost:${PORT}/api`);
+    console.log('🚀 Server is ready for connections!');
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM signal received: closing HTTP server');
+    process.exit(0);
+});
+
+process.on('SIGINT', () => {
+    console.log('SIGINT signal received: closing HTTP server');
+    process.exit(0);
 });
 
 module.exports = app;
