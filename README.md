@@ -167,7 +167,7 @@ function getOwnerDevices(address owner) view returns (bytes32[] memory)
 function getTotalDevices() view returns (uint256)
 ```
 
-## Usage Examples (Also can use data from "testdata.md" file
+## Usage Examples (Also can use data from "testdata.md" file)
 
 ### Register a Device
 
